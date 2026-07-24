@@ -1,279 +1,221 @@
--- Services
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+-- Se estiver usando em Studio, vai para o PlayerGui. Se for executor, tenta usar CoreGui para não bugar.
+local targetParent = (pcall(function() return CoreGui.Name end) and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
 
--- ----------------------------------------------------
--- CREATION OF SCREEN GUI
--- ----------------------------------------------------
+-- Evita duplicatas
+if targetParent:FindFirstChild("MurderNiceHUD") then
+	targetParent.MurderNiceHUD:Destroy()
+end
+
+-- ==========================================
+-- 1. BASE DA GUI
+-- ==========================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MurderNiceHUD"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = PlayerGui
+ScreenGui.Parent = targetParent
 
--- ----------------------------------------------------
--- MAIN HUD FRAME
--- ----------------------------------------------------
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 520, 0, 310)
-MainFrame.Position = UDim2.new(0.5, -260, 0.5, -155)
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.Size = UDim2.new(0, 500, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -250, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 MainFrame.BorderSizePixel = 0
-MainFrame.ClipsDescendants = true
+MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.CornerRadius = UDim.new(0, 8)
 MainCorner.Parent = MainFrame
 
--- Top Bar / Header
+-- Top Bar (Área de Arrastar e Título)
 local TopBar = Instance.new("Frame")
-TopBar.Name = "TopBar"
-TopBar.Size = UDim2.new(1, 0, 0, 40)
-TopBar.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+TopBar.Size = UDim2.new(1, 0, 0, 35)
+TopBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 TopBar.BorderSizePixel = 0
+TopBar.Active = true
 TopBar.Parent = MainFrame
 
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Name = "TitleLabel"
-TitleLabel.Size = UDim2.new(0, 200, 1, 0)
-TitleLabel.Position = UDim2.new(0, 15, 0, 0)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "# Murder nice"
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.TextSize = 18
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TitleLabel.Parent = TopBar
+local TopBarCorner = Instance.new("UICorner")
+TopBarCorner.CornerRadius = UDim.new(0, 8)
+TopBarCorner.Parent = TopBar
 
--- Window Controls (Minimize & Close)
-local ControlsFrame = Instance.new("Frame")
-ControlsFrame.Name = "ControlsFrame"
-ControlsFrame.Size = UDim2.new(0, 60, 1, 0)
-ControlsFrame.Position = UDim2.new(1, -65, 0, 0)
-ControlsFrame.BackgroundTransparency = 1
-ControlsFrame.Parent = TopBar
+-- Tapa o canto inferior da TopBar para conectar com o resto do menu
+local TopBarHider = Instance.new("Frame")
+TopBarHider.Size = UDim2.new(1, 0, 0, 8)
+TopBarHider.Position = UDim2.new(0, 0, 1, -8)
+TopBarHider.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TopBarHider.BorderSizePixel = 0
+TopBarHider.Parent = TopBar
 
-local UIListControls = Instance.new("UIListLayout")
-UIListControls.FillDirection = Enum.FillDirection.Horizontal
-UIListControls.HorizontalAlignment = Enum.HorizontalAlignment.Right
-UIListControls.VerticalAlignment = Enum.VerticalAlignment.Center
-UIListControls.Padding = UDim.new(0, 8)
-UIListControls.Parent = ControlsFrame
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(0, 200, 1, 0)
+Title.Position = UDim2.new(0, 15, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "# Murder nice"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TopBar
 
+-- Botões de Controle (- e X)
 local MinimizeBtn = Instance.new("TextButton")
-MinimizeBtn.Name = "MinimizeBtn"
-MinimizeBtn.Size = UDim2.new(0, 24, 0, 24)
+MinimizeBtn.Size = UDim2.new(0, 30, 1, 0)
+MinimizeBtn.Position = UDim2.new(1, -60, 0, 0)
 MinimizeBtn.BackgroundTransparency = 1
-MinimizeBtn.Text = "—"
-MinimizeBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-MinimizeBtn.TextSize = 16
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 MinimizeBtn.Font = Enum.Font.GothamBold
-MinimizeBtn.Parent = ControlsFrame
+MinimizeBtn.TextSize = 18
+MinimizeBtn.Parent = TopBar
 
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Name = "CloseBtn"
-CloseBtn.Size = UDim2.new(0, 24, 0, 24)
+CloseBtn.Size = UDim2.new(0, 30, 1, 0)
+CloseBtn.Position = UDim2.new(1, -30, 0, 0)
 CloseBtn.BackgroundTransparency = 1
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-CloseBtn.TextSize = 16
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.Parent = ControlsFrame
+CloseBtn.TextSize = 16
+CloseBtn.Parent = TopBar
 
--- ----------------------------------------------------
--- SIDEBAR (NAVIGATION)
--- ----------------------------------------------------
+-- ==========================================
+-- 2. SIDEBAR E CONTEÚDO
+-- ==========================================
 local SideBar = Instance.new("Frame")
-SideBar.Name = "SideBar"
-SideBar.Size = UDim2.new(0, 140, 1, -40)
-SideBar.Position = UDim2.new(0, 0, 0, 40)
-SideBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+SideBar.Size = UDim2.new(0, 130, 1, -35)
+SideBar.Position = UDim2.new(0, 0, 0, 35)
+SideBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 SideBar.BorderSizePixel = 0
 SideBar.Parent = MainFrame
 
-local SideBarList = Instance.new("UIListLayout")
-SideBarList.SortOrder = Enum.SortOrder.LayoutOrder
-SideBarList.Padding = UDim.new(0, 6)
-SideBarList.Parent = SideBar
+local ContentArea = Instance.new("Frame")
+ContentArea.Size = UDim2.new(1, -130, 1, -35)
+ContentArea.Position = UDim2.new(0, 130, 0, 35)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainFrame
 
-local SideBarPadding = Instance.new("UIPadding")
-SideBarPadding.PaddingTop = UDim.new(0, 10)
-SideBarPadding.PaddingLeft = UDim.new(0, 10)
-SideBarPadding.PaddingRight = UDim.new(0, 10)
-SideBarPadding.Parent = SideBar
+local TabList = Instance.new("UIListLayout")
+TabList.SortOrder = Enum.SortOrder.LayoutOrder
+TabList.Padding = UDim.new(0, 5)
+TabList.Parent = SideBar
 
--- Function to create sidebar tab buttons
-local function createTabButton(name, text, order)
-	local btn = Instance.new("TextButton")
-	btn.Name = name .. "TabBtn"
-	btn.Size = UDim2.new(1, 0, 0, 36)
-	btn.BackgroundColor3 = Color3.fromRGB(42, 42, 42)
-	btn.BorderSizePixel = 0
-	btn.Text = "      " .. text
-	btn.TextColor3 = Color3.fromRGB(180, 180, 180)
-	btn.TextSize = 14
-	btn.Font = Enum.Font.GothamMedium
-	btn.TextXAlignment = Enum.TextXAlignment.Left
-	btn.LayoutOrder = order
-	btn.Parent = SideBar
+local SidePadding = Instance.new("UIPadding")
+SidePadding.PaddingTop = UDim.new(0, 10)
+SidePadding.PaddingLeft = UDim.new(0, 10)
+SidePadding.PaddingRight = UDim.new(0, 10)
+SidePadding.Parent = SideBar
 
-	local btnCorner = Instance.new("UICorner")
-	btnCorner.CornerRadius = UDim.new(0, 6)
-	btnCorner.Parent = btn
+-- Função para criar Abas
+local Tabs = {}
+local Pages = {}
 
-	local redBar = Instance.new("Frame")
-	redBar.Name = "RedBar"
-	redBar.Size = UDim2.new(0, 3, 0, 18)
-	redBar.Position = UDim2.new(0, 0, 0.5, -9)
-	redBar.BackgroundColor3 = Color3.fromRGB(235, 45, 45)
-	redBar.BorderSizePixel = 0
-	redBar.Visible = false
-	redBar.Parent = btn
+local function createTab(name, defaultActive)
+	local TabBtn = Instance.new("TextButton")
+	TabBtn.Size = UDim2.new(1, 0, 0, 30)
+	TabBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+	TabBtn.BackgroundTransparency = defaultActive and 0 or 1
+	TabBtn.BorderSizePixel = 0
+	TabBtn.Text = name
+	TabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	TabBtn.Font = Enum.Font.GothamSemibold
+	TabBtn.TextSize = 14
+	TabBtn.TextXAlignment = Enum.TextXAlignment.Left
+	TabBtn.Parent = SideBar
 
-	local barCorner = Instance.new("UICorner")
-	barCorner.CornerRadius = UDim.new(0, 2)
-	barCorner.Parent = redBar
+	local TabPadding = Instance.new("UIPadding")
+	TabPadding.PaddingLeft = UDim.new(0, 10)
+	TabPadding.Parent = TabBtn
 
-	return btn, redBar
-end
+	local TabCorner = Instance.new("UICorner")
+	TabCorner.CornerRadius = UDim.new(0, 6)
+	TabCorner.Parent = TabBtn
 
-local MainTabBtn, MainRedBar = createTabButton("Main", "Main", 1)
-local VersaoTabBtn, VersaoRedBar = createTabButton("Versao", "Versão", 2)
+	local RedLine = Instance.new("Frame")
+	RedLine.Size = UDim2.new(0, 3, 0, 16)
+	RedLine.Position = UDim2.new(0, -10, 0.5, -8)
+	RedLine.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+	RedLine.BorderSizePixel = 0
+	RedLine.Visible = defaultActive
+	RedLine.Parent = TabBtn
 
--- ----------------------------------------------------
--- CONTENT PAGES
--- ----------------------------------------------------
-local ContentContainer = Instance.new("Frame")
-ContentContainer.Name = "ContentContainer"
-ContentContainer.Size = UDim2.new(1, -140, 1, -40)
-ContentContainer.Position = UDim2.new(0, 140, 0, 40)
-ContentContainer.BackgroundTransparency = 1
-ContentContainer.Parent = MainFrame
+	local Page = Instance.new("Frame")
+	Page.Size = UDim2.new(1, 0, 1, 0)
+	Page.BackgroundTransparency = 1
+	Page.Visible = defaultActive
+	Page.Parent = ContentArea
+	
+	local PagePadding = Instance.new("UIPadding")
+	PagePadding.PaddingTop = UDim.new(0, 15)
+	PagePadding.PaddingLeft = UDim.new(0, 15)
+	PagePadding.PaddingRight = UDim.new(0, 15)
+	PagePadding.Parent = Page
 
-local ContentPadding = Instance.new("UIPadding")
-ContentPadding.PaddingTop = UDim.new(0, 15)
-ContentPadding.PaddingLeft = UDim.new(0, 20)
-ContentPadding.PaddingRight = UDim.new(0, 20)
-ContentPadding.Parent = ContentContainer
+	Tabs[name] = {Btn = TabBtn, Line = RedLine, Page = Page}
 
--- PAGE 1: MAIN
-local MainPage = Instance.new("Frame")
-MainPage.Name = "MainPage"
-MainPage.Size = UDim2.new(1, 0, 1, 0)
-MainPage.BackgroundTransparency = 1
-MainPage.Visible = true
-MainPage.Parent = ContentContainer
-
-local MainHeader = Instance.new("TextLabel")
-MainHeader.Size = UDim2.new(1, 0, 0, 25)
-MainHeader.BackgroundTransparency = 1
-MainHeader.Text = "ESP"
-MainHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
-MainHeader.TextSize = 16
-MainHeader.Font = Enum.Font.GothamBold
-MainHeader.TextXAlignment = Enum.TextXAlignment.Left
-MainHeader.Parent = MainPage
-
-local MainList = Instance.new("UIListLayout")
-MainList.SortOrder = Enum.SortOrder.LayoutOrder
-MainList.Padding = UDim.new(0, 10)
-MainList.Parent = MainPage
-
--- Toggle State Registry
-local activeToggles = {}
-
--- Function to create Toggle Options
-local function createToggleRow(name, labelText, order, hasColorPicker)
-	local row = Instance.new("Frame")
-	row.Name = name .. "Row"
-	row.Size = UDim2.new(1, 0, 0, 42)
-	row.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
-	row.BorderSizePixel = 0
-	row.LayoutOrder = order
-	row.Parent = MainPage
-
-	local rowCorner = Instance.new("UICorner")
-	rowCorner.CornerRadius = UDim.new(0, 8)
-	rowCorner.Parent = row
-
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(0.6, 0, 1, 0)
-	title.Position = UDim2.new(0, 12, 0, 0)
-	title.BackgroundTransparency = 1
-	title.Text = labelText
-	title.TextColor3 = Color3.fromRGB(220, 220, 220)
-	title.TextSize = 14
-	title.Font = Enum.Font.GothamMedium
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Parent = row
-
-	-- Toggle Switch
-	local toggleBg = Instance.new("TextButton")
-	toggleBg.Name = "ToggleBg"
-	toggleBg.Size = UDim2.new(0, 44, 0, 22)
-	toggleBg.Position = UDim2.new(1, (hasColorPicker and -78 or -52), 0.5, -11)
-	toggleBg.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-	toggleBg.AutoButtonColor = false
-	toggleBg.Text = ""
-	toggleBg.Parent = row
-
-	local toggleCorner = Instance.new("UICorner")
-	toggleCorner.CornerRadius = UDim.new(1, 0)
-	toggleCorner.Parent = toggleBg
-
-	local toggleCircle = Instance.new("Frame")
-	toggleCircle.Name = "Circle"
-	toggleCircle.Size = UDim2.new(0, 16, 0, 16)
-	toggleCircle.Position = UDim2.new(0, 3, 0.5, -8)
-	toggleCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	toggleCircle.BorderSizePixel = 0
-	toggleCircle.Parent = toggleBg
-
-	local circleCorner = Instance.new("UICorner")
-	circleCorner.CornerRadius = UDim.new(1, 0)
-	circleCorner.Parent = toggleCircle
-
-	local state = false
-
-	local function setToggleState(newState)
-		state = newState
-		activeToggles[name] = state
-
-		if state then
-			TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(46, 204, 113)}):Play()
-			TweenService:Create(toggleCircle, TweenInfo.new(0.2), {Position = UDim2.new(1, -19, 0.5, -8)}):Play()
-		else
-			TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 100, 100)}):Play()
-			TweenService:Create(toggleCircle, TweenInfo.new(0.2), {Position = UDim2.new(0, 3, 0.5, -8)}):Play()
+	TabBtn.MouseButton1Click:Connect(function()
+		for tName, data in pairs(Tabs) do
+			data.Btn.BackgroundTransparency = 1
+			data.Line.Visible = false
+			data.Page.Visible = false
 		end
-	end
-
-	toggleBg.MouseButton1Click:Connect(function()
-		setToggleState(not state)
+		TabBtn.BackgroundTransparency = 0
+		RedLine.Visible = true
+		Page.Visible = true
 	end)
 
-	if hasColorPicker then
-		local colorBox = Instance.new("Frame")
-		colorBox.Name = "ColorPicker"
-		colorBox.Size = UDim2.new(0, 22, 0, 22)
-		colorBox.Position = UDim2.new(1, -30, 0.5, -11)
-		colorBox.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-		colorBox.BorderSizePixel = 0
-		colorBox.Parent = row
-
-		local boxCorner = Instance.new("UICorner")
-		boxCorner.CornerRadius = UDim.new(0, 6)
-		boxCorner.Parent = colorBox
-	end
-
-	return {
-		Reset = function() setToggleState(false) end,
-		GetState = function() return state end
-	}
+	return Page
 end
+
+local MainPage = createTab("Main", true)
+local VersaoPage = createTab("Versão", false)
+
+-- ==========================================
+-- 3. OPÇÕES DA ABA "MAIN"
+-- ==========================================
+local ESPLabel = Instance.new("TextLabel")
+ESPLabel.Size = UDim2.new(1, 0, 0, 20)
+ESPLabel.BackgroundTransparency = 1
+ESPLabel.Text = "ESP"
+ESPLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ESPLabel.Font = Enum.Font.GothamBold
+ESPLabel.TextSize = 16
+ESPLabel.TextXAlignment = Enum.TextXAlignment.Left
+ESPLabel.Parent = MainPage
+
+local MainUIList = Instance.new("UIListLayout")
+MainUIList.SortOrder = Enum.SortOrder.LayoutOrder
+MainUIList.Padding = UDim.new(0, 8)
+MainUIList.Parent = MainPage
+
+ESPLabel.LayoutOrder = 1
+
+local allToggles = {}
+
+local function createToggle(page, name, order, hasColorPicker, isToggled)
+	local Row = Instance.new("Frame")
+	Row.Size = UDim2.new(1, 0, 0, 35)
+	Row.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+	Row.BorderSizePixel = 0
+	Row.LayoutOrder = order
+	Row.Parent = page
+
+	local RowCorner = Instance.new("UICorner")
+	RowCorner.CornerRadius = UDim.new(0, 6)
+	RowCorner.Parent = Row
+
+	local Title = Instance.new("TextLabel")
+	Title.Size = UDim2.new(0.5, 0, 1, 0)
+	Title.Position = UDim2.new(0, 10, 0, 0)
+	Title.BackgroundTransparency = 1
+	Title.Text = name
+	Title.TextColor3 = Color3.fromRGB(220, 220, 220)
+	Title.Font = Enum.Font.GothamSemibold
+	Title.TextSize = 14
+	Title.TextXAlignment = Enum.TextXAlignment.Left
