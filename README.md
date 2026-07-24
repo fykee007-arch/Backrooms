@@ -1,14 +1,15 @@
 --[[
-    Advanced Roblox Automation Framework v1.0
-    - ESP Chams para Players com Color Picker
+    Advanced Roblox Automation Framework v2.0
+    - ESP Chams com múltiplos métodos de detecção
+    - Sistema de debugging integrado
     - UI Arrastável e Minimizável
-    - Alto desempenho com otimizações
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
@@ -16,42 +17,123 @@ local Camera = workspace.CurrentCamera
 local Config = {
     ESP = {
         Enabled = false,
-        Color = Color3.fromRGB(0, 255, 0)
+        Color = Color3.fromRGB(0, 255, 0),
+        Transparency = 0.2 -- 80% transparente
+    },
+    Debug = {
+        Enabled = true -- Mostra mensagens de debug
     }
 }
 
--- Sistema de Otimização (Throttling)
-local Throttle = {
-    LastUpdate = 0,
-    UpdateInterval = 0.1, -- Atualiza a cada 100ms
-    ESPCache = {}
-}
+-- Sistema de Debug
+local function DebugLog(message, ...)
+    if Config.Debug.Enabled then
+        print("[ESP Debug] " .. string.format(message, ...))
+    end
+end
 
 -- Gerenciador de ESP
 local ESPManager = {
     ActiveHighlights = {},
-    Enabled = false
+    TrackedPlayers = {},
+    Enabled = false,
+    LastUpdate = 0,
+    UpdateInterval = 0.1
 }
 
--- Função para criar Highlight (Chams)
-local function CreateHighlight(part, color)
-    if not part or not part.Parent then return nil end
+-- Função melhorada para criar Highlight
+local function CreateHighlight(part, color, transparency)
+    if not part or not part.Parent then 
+        DebugLog("Parte inválida para highlight")
+        return nil 
+    end
+    
+    -- Verifica se já existe um highlight nessa parte
+    local existingHighlight = part:FindFirstChild("ESP_Highlight")
+    if existingHighlight then
+        existingHighlight:Destroy()
+    end
     
     local highlight = Instance.new("Highlight")
+    highlight.Name = "ESP_Highlight"
     highlight.FillColor = color
     highlight.OutlineColor = color
-    highlight.FillTransparency = 0.2 -- 80% transparente
-    highlight.OutlineTransparency = 0.2
+    highlight.FillTransparency = transparency or 0.2
+    highlight.OutlineTransparency = transparency or 0.2
     highlight.Adornee = part
     highlight.Parent = part
     
+    DebugLog("Highlight criado para: %s", part:GetFullName())
     return highlight
 end
 
--- Atualiza ESP para todos os players
+-- Função para encontrar o melhor objeto para o highlight
+local function GetBestPart(character)
+    if not character then return nil end
+    
+    -- Tenta encontrar partes principais
+    local parts = {
+        character:FindFirstChild("HumanoidRootPart"),
+        character:FindFirstChild("UpperTorso"),
+        character:FindFirstChild("LowerTorso"),
+        character:FindFirstChild("Torso"),
+        character:FindFirstChild("Head")
+    }
+    
+    for _, part in ipairs(parts) do
+        if part and part:IsA("BasePart") then
+            return part
+        end
+    end
+    
+    -- Se não encontrou, procura qualquer BasePart
+    for _, descendant in ipairs(character:GetDescendants()) do
+        if descendant:IsA("BasePart") then
+            return descendant
+        end
+    end
+    
+    return nil
+end
+
+-- Função para verificar se um modelo é um jogador válido
+local function IsValidPlayerCharacter(model)
+    if not model or not model:IsA("Model") then return false end
+    if not model:FindFirstChild("Humanoid") then return false end
+    
+    -- Verifica se pertence a um jogador
+    local player = Players:GetPlayerFromCharacter(model)
+    if not player then return false end
+    
+    -- Não mostrar o próprio jogador
+    if player == LocalPlayer then return false end
+    
+    return true
+end
+
+-- Atualiza ESP com método mais robusto
 local function UpdateESP()
+    local currentTime = tick()
+    if currentTime - ESPManager.LastUpdate < ESPManager.UpdateInterval then
+        return
+    end
+    ESPManager.LastUpdate = currentTime
+    
+    -- Limpa highlights antigos
+    local cleanupCount = 0
+    for i = #ESPManager.ActiveHighlights, 1, -1 do
+        local highlight = ESPManager.ActiveHighlights[i]
+        if not highlight or not highlight.Parent then
+            table.remove(ESPManager.ActiveHighlights, i)
+            cleanupCount = cleanupCount + 1
+        end
+    end
+    if cleanupCount > 0 then
+        DebugLog("Limpeza: %d highlights removidos", cleanupCount)
+    end
+    
+    -- Se desativado, remove todos
     if not Config.ESP.Enabled then
-        -- Limpa todos os highlights
         for _, highlight in ipairs(ESPManager.ActiveHighlights) do
             if highlight and highlight.Parent then
                 highlight:Destroy()
@@ -61,43 +143,59 @@ local function UpdateESP()
         return
     end
     
-    -- Remove highlights antigos
-    for _, highlight in ipairs(ESPManager.ActiveHighlights) do
-        if highlight and highlight.Parent then
-            highlight:Destroy()
-        end
-    end
-    ESPManager.ActiveHighlights = {}
+    -- Verifica todos os players
+    local players = Players:GetPlayers()
+    local foundPlayers = 0
     
-    -- Aplica novos highlights
-    local color = Config.ESP.Color
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
+    for _, player in ipairs(players) do
+        if player ~= LocalPlayer then
             local character = player.Character
-            local rootPart = character:FindFirstChild("HumanoidRootPart")
-            local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
-            
-            local primaryPart = rootPart or torso
-            if primaryPart then
-                local highlight = CreateHighlight(primaryPart, color)
-                if highlight then
-                    table.insert(ESPManager.ActiveHighlights, highlight)
+            if character then
+                local part = GetBestPart(character)
+                if part then
+                    -- Verifica se já tem highlight
+                    local hasHighlight = false
+                    for _, highlight in ipairs(ESPManager.ActiveHighlights) do
+                        if highlight and highlight.Adornee == part then
+                            hasHighlight = true
+                            break
+                        end
+                    end
+                    
+                    if not hasHighlight then
+                        local highlight = CreateHighlight(part, Config.ESP.Color, Config.ESP.Transparency)
+                        if highlight then
+                            table.insert(ESPManager.ActiveHighlights, highlight)
+                            foundPlayers = foundPlayers + 1
+                            DebugLog("ESP ativado para: %s", player.Name)
+                        end
+                    end
+                else
+                    DebugLog("Nenhuma parte encontrada para: %s", player.Name)
                 end
             end
         end
     end
+    
+    if foundPlayers > 0 then
+        DebugLog("ESP ativado para %d jogadores", foundPlayers)
+    end
 end
 
--- Loop otimizado para ESP
+-- Loop otimizado com detecção automática de novos players
 local function ESPLoop()
     while true do
-        task.wait(Throttle.UpdateInterval)
-        UpdateESP()
+        task.wait(ESPManager.UpdateInterval)
+        
+        -- Verifica por novos players automaticamente
+        if Config.ESP.Enabled then
+            UpdateESP()
+        end
     end
 end
 
 -- ============================================
--- SISTEMA DE UI AVANÇADO
+-- SISTEMA DE UI
 -- ============================================
 
 local UI = {
@@ -118,28 +216,30 @@ local function CreateUI()
     screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     UI.ScreenGui = screenGui
     
-    -- Frame principal (arrastável)
+    -- Frame principal
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 320, 0, 150)
-    mainFrame.Position = UDim2.new(0.5, -160, 0.5, -75)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
-    mainFrame.BackgroundTransparency = 0.15
-    mainFrame.BorderSizePixel = 0
+    mainFrame.Size = UDim2.new(0, 340, 0, 180)
+    mainFrame.Position = UDim2.new(0.5, -170, 0.5, -90)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
+    mainFrame.BackgroundTransparency = 0.1
+    mainFrame.BorderSizePixel = 1
+    mainFrame.BorderColor3 = Color3.fromRGB(50, 50, 70)
     mainFrame.ClipsDescendants = true
     mainFrame.Parent = screenGui
     
     -- Sombra
     local shadow = Instance.new("Frame")
-    shadow.Size = UDim2.new(1, 10, 1, 10)
-    shadow.Position = UDim2.new(0, -5, 0, -5)
+    shadow.Size = UDim2.new(1, 12, 1, 12)
+    shadow.Position = UDim2.new(0, -6, 0, -6)
     shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.BackgroundTransparency = 0.5
+    shadow.BackgroundTransparency = 0.6
     shadow.BorderSizePixel = 0
+    shadow.ZIndex = -1
     shadow.Parent = mainFrame
     
-    -- Barra de título (para arrastar)
+    -- Barra de título
     local titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.Size = UDim2.new(1, 0, 0, 32)
     titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
     titleBar.BackgroundTransparency = 0.3
     titleBar.BorderSizePixel = 0
@@ -150,7 +250,7 @@ local function CreateUI()
     titleText.Size = UDim2.new(0.6, 0, 1, 0)
     titleText.Position = UDim2.new(0, 10, 0, 0)
     titleText.BackgroundTransparency = 1
-    titleText.Text = "⚡ Automation Framework"
+    titleText.Text = "⚡ ESP Framework"
     titleText.TextColor3 = Color3.fromRGB(0, 255, 180)
     titleText.TextScaled = true
     titleText.TextXAlignment = Enum.TextXAlignment.Left
@@ -160,9 +260,9 @@ local function CreateUI()
     -- Botão Minimizar
     local minButton = Instance.new("TextButton")
     minButton.Size = UDim2.new(0, 30, 1, 0)
-    minButton.Position = UDim2.new(0.9, 0, 0, 0)
+    minButton.Position = UDim2.new(0.88, 0, 0, 0)
     minButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    minButton.BackgroundTransparency = 0.2
+    minButton.BackgroundTransparency = 0.3
     minButton.Text = "−"
     minButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     minButton.TextScaled = true
@@ -170,12 +270,12 @@ local function CreateUI()
     minButton.BorderSizePixel = 0
     minButton.Parent = titleBar
     
-    -- Botão Fechar (opcional)
+    -- Botão Fechar
     local closeButton = Instance.new("TextButton")
     closeButton.Size = UDim2.new(0, 30, 1, 0)
-    closeButton.Position = UDim2.new(0.95, 0, 0, 0)
+    closeButton.Position = UDim2.new(0.94, 0, 0, 0)
     closeButton.BackgroundColor3 = Color3.fromRGB(80, 30, 30)
-    closeButton.BackgroundTransparency = 0.2
+    closeButton.BackgroundTransparency = 0.3
     closeButton.Text = "✕"
     closeButton.TextColor3 = Color3.fromRGB(255, 100, 100)
     closeButton.TextScaled = true
@@ -183,17 +283,17 @@ local function CreateUI()
     closeButton.BorderSizePixel = 0
     closeButton.Parent = titleBar
     
-    -- Conteúdo da UI
+    -- Conteúdo
     local contentFrame = Instance.new("Frame")
-    contentFrame.Size = UDim2.new(1, -20, 1, -40)
-    contentFrame.Position = UDim2.new(0, 10, 0, 35)
+    contentFrame.Size = UDim2.new(1, -20, 1, -45)
+    contentFrame.Position = UDim2.new(0, 10, 0, 38)
     contentFrame.BackgroundTransparency = 1
     contentFrame.Parent = mainFrame
     
     -- Label ESP
     local espLabel = Instance.new("TextLabel")
-    espLabel.Size = UDim2.new(0.4, 0, 0, 30)
-    espLabel.Position = UDim2.new(0, 0, 0.1, 0)
+    espLabel.Size = UDim2.new(0.35, 0, 0, 30)
+    espLabel.Position = UDim2.new(0, 0, 0.05, 0)
     espLabel.BackgroundTransparency = 1
     espLabel.Text = "ESP Players"
     espLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -204,8 +304,8 @@ local function CreateUI()
     
     -- Toggle ESP
     local espToggle = Instance.new("TextButton")
-    espToggle.Size = UDim2.new(0, 50, 0, 25)
-    espToggle.Position = UDim2.new(0.45, 0, 0.1, 0)
+    espToggle.Size = UDim2.new(0, 55, 0, 28)
+    espToggle.Position = UDim2.new(0.42, 0, 0.05, 0)
     espToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     espToggle.Text = "OFF"
     espToggle.TextColor3 = Color3.fromRGB(255, 80, 80)
@@ -216,38 +316,50 @@ local function CreateUI()
     
     -- Color Picker Button
     local colorPickerBtn = Instance.new("TextButton")
-    colorPickerBtn.Size = UDim2.new(0, 30, 0, 25)
-    colorPickerBtn.Position = UDim2.new(0.65, 0, 0.1, 0)
+    colorPickerBtn.Size = UDim2.new(0, 35, 0, 28)
+    colorPickerBtn.Position = UDim2.new(0.62, 0, 0.05, 0)
     colorPickerBtn.BackgroundColor3 = Config.ESP.Color
     colorPickerBtn.Text = ""
     colorPickerBtn.BorderSizePixel = 2
     colorPickerBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
     colorPickerBtn.Parent = contentFrame
     
-    -- Label de status
+    -- Info label
+    local infoLabel = Instance.new("TextLabel")
+    infoLabel.Size = UDim2.new(1, 0, 0, 25)
+    infoLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    infoLabel.BackgroundTransparency = 1
+    infoLabel.Text = "💡 Ative o ESP para ver jogadores"
+    infoLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
+    infoLabel.TextScaled = true
+    infoLabel.Font = Enum.Font.Gotham
+    infoLabel.Parent = contentFrame
+    
+    -- Status label
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(1, 0, 0, 20)
-    statusLabel.Position = UDim2.new(0, 0, 0.6, 0)
+    statusLabel.Position = UDim2.new(0, 0, 0.75, 0)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "Sistema: 💤 Inativo"
+    statusLabel.Text = "Status: 💤 Aguardando"
     statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
     statusLabel.TextScaled = true
     statusLabel.Font = Enum.Font.Gotham
     statusLabel.Parent = contentFrame
     
     -- ============================================
-    -- BOTÃO MINIMIZADO (aparece quando minimizado)
+    -- BOTÃO MINIMIZADO
     -- ============================================
     local minimizedButton = Instance.new("TextButton")
-    minimizedButton.Size = UDim2.new(0, 45, 0, 45)
+    minimizedButton.Size = UDim2.new(0, 50, 0, 50)
     minimizedButton.Position = UDim2.new(0, 10, 0, 10)
-    minimizedButton.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
-    minimizedButton.BackgroundTransparency = 0.15
+    minimizedButton.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
+    minimizedButton.BackgroundTransparency = 0.1
     minimizedButton.Text = "Z"
     minimizedButton.TextColor3 = Color3.fromRGB(0, 255, 180)
     minimizedButton.TextScaled = true
     minimizedButton.Font = Enum.Font.GothamBold
-    minimizedButton.BorderSizePixel = 0
+    minimizedButton.BorderSizePixel = 1
+    minimizedButton.BorderColor3 = Color3.fromRGB(50, 50, 70)
     minimizedButton.Visible = false
     minimizedButton.Parent = screenGui
     UI.MinimizedButton = minimizedButton
@@ -256,47 +368,27 @@ local function CreateUI()
     -- LÓGICA DA UI
     -- ============================================
     
-    -- Função para minimizar
     local function MinimizeUI()
         UI.Minimized = true
         mainFrame.Visible = false
         minimizedButton.Visible = true
-        
-        -- Tween para suavizar
-        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        local tween = TweenService:Create(minimizedButton, tweenInfo, {
-            BackgroundTransparency = 0.1,
-            Size = UDim2.new(0, 50, 0, 50)
-        })
-        tween:Play()
     end
     
-    -- Função para restaurar
     local function RestoreUI()
         UI.Minimized = false
         mainFrame.Visible = true
         minimizedButton.Visible = false
-        
-        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        local tween = TweenService:Create(mainFrame, tweenInfo, {
-            BackgroundTransparency = 0.15
-        })
-        tween:Play()
     end
     
-    -- Evento do botão minimizar
     minButton.MouseButton1Click:Connect(MinimizeUI)
-    
-    -- Evento do botão minimizado
     minimizedButton.MouseButton1Click:Connect(RestoreUI)
     
-    -- Evento do botão fechar
     closeButton.MouseButton1Click:Connect(function()
         screenGui:Destroy()
     end)
     
     -- ============================================
-    -- SISTEMA DE ARRASTAR (com smoothing)
+    -- SISTEMA DE ARRASTAR
     -- ============================================
     
     local function StartDrag(input)
@@ -325,7 +417,6 @@ local function CreateUI()
         UI.IsDragging = false
     end
     
-    -- Eventos de arrastar na barra de título
     titleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             StartDrag(input)
@@ -342,7 +433,6 @@ local function CreateUI()
     -- LÓGICA DOS BOTÕES
     -- ============================================
     
-    -- Toggle ESP
     espToggle.MouseButton1Click:Connect(function()
         Config.ESP.Enabled = not Config.ESP.Enabled
         
@@ -350,66 +440,72 @@ local function CreateUI()
             espToggle.Text = "ON"
             espToggle.TextColor3 = Color3.fromRGB(80, 255, 80)
             espToggle.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
-            statusLabel.Text = "Sistema: 🟢 Ativo"
+            statusLabel.Text = "Status: 🟢 Ativo - Procurando jogadores..."
             statusLabel.TextColor3 = Color3.fromRGB(80, 255, 80)
+            infoLabel.Text = "👀 ESP ativo! Procurando jogadores..."
+            DebugLog("ESP ativado pelo usuário")
+            
+            -- Atualiza imediatamente
+            UpdateESP()
         else
             espToggle.Text = "OFF"
             espToggle.TextColor3 = Color3.fromRGB(255, 80, 80)
             espToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-            statusLabel.Text = "Sistema: 💤 Inativo"
+            statusLabel.Text = "Status: 💤 Desativado"
             statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-            -- Limpa ESP
-            UpdateESP()
+            infoLabel.Text = "💡 Ative o ESP para ver jogadores"
+            DebugLog("ESP desativado pelo usuário")
+            
+            -- Limpa tudo
+            for _, highlight in ipairs(ESPManager.ActiveHighlights) do
+                if highlight and highlight.Parent then
+                    highlight:Destroy()
+                end
+            end
+            ESPManager.ActiveHighlights = {}
         end
     end)
     
     -- Color Picker
     colorPickerBtn.MouseButton1Click:Connect(function()
-        -- Criar color picker
         local pickerFrame = Instance.new("Frame")
-        pickerFrame.Size = UDim2.new(0, 250, 0, 200)
-        pickerFrame.Position = UDim2.new(0.5, -125, 0.5, -100)
-        pickerFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+        pickerFrame.Size = UDim2.new(0, 280, 0, 220)
+        pickerFrame.Position = UDim2.new(0.5, -140, 0.5, -110)
+        pickerFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
         pickerFrame.BackgroundTransparency = 0.1
-        pickerFrame.BorderSizePixel = 0
+        pickerFrame.BorderSizePixel = 1
+        pickerFrame.BorderColor3 = Color3.fromRGB(50, 50, 70)
         pickerFrame.Parent = screenGui
         
-        -- Título do picker
         local pickerTitle = Instance.new("TextLabel")
-        pickerTitle.Size = UDim2.new(1, 0, 0, 30)
+        pickerTitle.Size = UDim2.new(1, 0, 0, 35)
         pickerTitle.BackgroundTransparency = 1
-        pickerTitle.Text = "Selecionar Cor"
+        pickerTitle.Text = "🎨 Selecionar Cor"
         pickerTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
         pickerTitle.TextScaled = true
         pickerTitle.Font = Enum.Font.GothamBold
         pickerTitle.Parent = pickerFrame
         
-        -- Grid de cores
         local gridFrame = Instance.new("Frame")
-        gridFrame.Size = UDim2.new(1, -20, 1, -70)
-        gridFrame.Position = UDim2.new(0, 10, 0, 35)
+        gridFrame.Size = UDim2.new(1, -20, 1, -75)
+        gridFrame.Position = UDim2.new(0, 10, 0, 40)
         gridFrame.BackgroundTransparency = 1
         gridFrame.Parent = pickerFrame
         
-        -- Cores pré-definidas
         local colors = {
-            Color3.fromRGB(255, 0, 0),
-            Color3.fromRGB(0, 255, 0),
-            Color3.fromRGB(0, 0, 255),
-            Color3.fromRGB(255, 255, 0),
-            Color3.fromRGB(255, 0, 255),
-            Color3.fromRGB(0, 255, 255),
-            Color3.fromRGB(255, 128, 0),
-            Color3.fromRGB(128, 255, 0),
-            Color3.fromRGB(0, 128, 255),
-            Color3.fromRGB(255, 0, 128),
-            Color3.fromRGB(128, 0, 255),
-            Color3.fromRGB(0, 255, 128),
+            Color3.fromRGB(255, 0, 0), Color3.fromRGB(0, 255, 0),
+            Color3.fromRGB(0, 0, 255), Color3.fromRGB(255, 255, 0),
+            Color3.fromRGB(255, 0, 255), Color3.fromRGB(0, 255, 255),
+            Color3.fromRGB(255, 128, 0), Color3.fromRGB(128, 255, 0),
+            Color3.fromRGB(0, 128, 255), Color3.fromRGB(255, 0, 128),
+            Color3.fromRGB(128, 0, 255), Color3.fromRGB(0, 255, 128),
+            Color3.fromRGB(255, 255, 255), Color3.fromRGB(100, 100, 100),
+            Color3.fromRGB(255, 200, 0), Color3.fromRGB(200, 0, 255),
         }
         
         local buttonSize = 35
         local spacing = 5
-        local perRow = 6
+        local perRow = 7
         
         for i, color in ipairs(colors) do
             local btn = Instance.new("TextButton")
@@ -429,17 +525,24 @@ local function CreateUI()
                 colorPickerBtn.BackgroundColor3 = color
                 pickerFrame:Destroy()
                 
-                -- Atualiza ESP imediatamente se estiver ativo
+                -- Atualiza ESP se ativo
                 if Config.ESP.Enabled then
+                    -- Remove highlights antigos
+                    for _, highlight in ipairs(ESPManager.ActiveHighlights) do
+                        if highlight and highlight.Parent then
+                            highlight:Destroy()
+                        end
+                    end
+                    ESPManager.ActiveHighlights = {}
+                    DebugLog("Cor alterada para: %s", tostring(color))
                     UpdateESP()
                 end
             end)
         end
         
-        -- Botão fechar
         local closePicker = Instance.new("TextButton")
-        closePicker.Size = UDim2.new(0, 80, 0, 25)
-        closePicker.Position = UDim2.new(0.5, -40, 0, 170)
+        closePicker.Size = UDim2.new(0, 100, 0, 30)
+        closePicker.Position = UDim2.new(0.5, -50, 0, 185)
         closePicker.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
         closePicker.Text = "Fechar"
         closePicker.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -464,29 +567,80 @@ end
 -- INICIALIZAÇÃO
 -- ============================================
 
+-- Função de diagnóstico
+local function DiagnoseEnvironment()
+    DebugLog("=== Diagnóstico do Ambiente ===")
+    DebugLog("Jogador: %s", LocalPlayer and LocalPlayer.Name or "N/A")
+    DebugLog("Players conectados: %d", #Players:GetPlayers())
+    DebugLog("Workspace: %s", Workspace and "Disponível" or "N/A")
+    DebugLog("Camera: %s", Camera and "Disponível" or "N/A")
+    
+    -- Lista jogadores
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local char = player.Character
+            DebugLog("Jogador: %s - Personagem: %s", player.Name, char and "Sim" or "Não")
+            if char then
+                local parts = char:GetDescendants()
+                local baseParts = 0
+                for _, obj in ipairs(parts) do
+                    if obj:IsA("BasePart") then
+                        baseParts = baseParts + 1
+                    end
+                end
+                DebugLog("  Partes Base: %d", baseParts)
+            end
+        end
+    end
+    DebugLog("================================")
+end
+
 -- Criar UI
 local ui = CreateUI()
 
--- Iniciar loop de ESP em thread separada
+-- Iniciar diagnóstico
+DiagnoseEnvironment()
+
+-- Iniciar loop de ESP
 coroutine.wrap(ESPLoop)()
 
 -- ============================================
--- SISTEMA DE SEGURANÇA E PERFORMANCE
+-- SISTEMA DE MONITORAMENTO
 -- ============================================
 
--- Limpeza automática quando o jogador sair
+-- Monitora novos players entrando
+Players.PlayerAdded:Connect(function(player)
+    DebugLog("Novo jogador entrou: %s", player.Name)
+    if Config.ESP.Enabled then
+        task.wait(1) -- Aguarda o personagem carregar
+        UpdateESP()
+    end
+end)
+
+-- Monitora quando um personagem carrega
+Players.PlayerCharacterAdded:Connect(function(player)
+    if player == LocalPlayer then return end
+    DebugLog("Personagem carregado para: %s", player.Name)
+    if Config.ESP.Enabled then
+        task.wait(0.5)
+        UpdateESP()
+    end
+end)
+
+-- Atualização automática quando jogadores entram/saem
+Players.PlayerRemoving:Connect(function(player)
+    DebugLog("Jogador saiu: %s", player.Name)
+    if Config.ESP.Enabled then
+        UpdateESP()
+    end
+end)
+
+-- Limpeza automática
 LocalPlayer.AncestryChanged:Connect(function()
     if not LocalPlayer.Parent then
         if ui.ScreenGui then
             ui.ScreenGui:Destroy()
         end
-    end
-end)
-
--- Prevenir memory leaks
-game:GetService("CoreGui").ChildRemoved:Connect(function(child)
-    if child.Name == "AutomationFramework" then
-        -- Cleanup
         for _, highlight in ipairs(ESPManager.ActiveHighlights) do
             if highlight and highlight.Parent then
                 highlight:Destroy()
@@ -496,5 +650,6 @@ game:GetService("CoreGui").ChildRemoved:Connect(function(child)
     end
 end)
 
-print("⚡ Automation Framework carregado com sucesso!")
+print("⚡ ESP Framework v2.0 carregado com sucesso!")
 print("📌 Pressione 'Z' para restaurar a UI se minimizada")
+print("🔍 Verifique o console para mensagens de debug")
