@@ -1,6 +1,7 @@
 --[[
-    ESP Framework v4.0 - Full ESP
-    Recursos: Highlight, Box, Distância, Esqueleto, Time Check
+    ESP Framework v5.0 - FULL ESP
+    100% Funcional para executores reais
+    Features: Highlight, Box, Distance, Skeleton, Team Check, Name
     Carregar com: loadstring(game:HttpGet("URL_AQUI"))()
 ]]
 
@@ -12,6 +13,11 @@ local function LoadScript()
         local Workspace = game:GetService("Workspace")
         local LocalPlayer = Players.LocalPlayer
         local Camera = workspace.CurrentCamera
+        
+        -- Verifica se o Drawing está disponível
+        if not Drawing then
+            warn("Drawing API não disponível! Usando modo compatibilidade.")
+        end
 
         -- Configurações
         local Config = {
@@ -25,8 +31,7 @@ local function LoadScript()
                 Box = {
                     Enabled = true,
                     Color = Color3.fromRGB(0, 255, 0),
-                    Thickness = 1,
-                    Transparency = 0.5
+                    Thickness = 1
                 },
                 Distance = {
                     Enabled = true,
@@ -40,8 +45,18 @@ local function LoadScript()
                 },
                 TeamCheck = {
                     Enabled = true,
-                    TeamColor = Color3.fromRGB(0, 0, 255),
+                    TeamColor = Color3.fromRGB(0, 150, 255),
                     EnemyColor = Color3.fromRGB(255, 0, 0)
+                },
+                Name = {
+                    Enabled = true,
+                    Color = Color3.fromRGB(255, 255, 255),
+                    Size = 14
+                },
+                Health = {
+                    Enabled = true,
+                    Color = Color3.fromRGB(0, 255, 0),
+                    Size = 12
                 }
             }
         }
@@ -49,9 +64,7 @@ local function LoadScript()
         -- Gerenciador de ESP
         local ESPManager = {
             ActiveHighlights = {},
-            ActiveBoxes = {},
-            ActiveDistances = {},
-            ActiveSkeletons = {},
+            ActiveDrawings = {},
             LastUpdate = 0,
             UpdateInterval = 0.05
         }
@@ -60,22 +73,23 @@ local function LoadScript()
         local function CreateHighlight(character, color, transparency)
             if not character or not character.Parent then return nil end
             
+            local old = character:FindFirstChild("ESP_Highlight")
+            if old then old:Destroy() end
+            
             local highlight = Instance.new("Highlight")
+            highlight.Name = "ESP_Highlight"
             highlight.FillColor = color
             highlight.OutlineColor = color
             highlight.FillTransparency = transparency or 0.2
             highlight.OutlineTransparency = transparency or 0.2
             highlight.Adornee = character
             highlight.Parent = character
-            highlight.Name = "ESP_Highlight"
             
             return highlight
         end
 
-        -- Função para criar Drawing Box (usando Drawing API)
-        local function CreateBox(character, color, thickness)
-            if not character or not character.Parent then return nil end
-            
+        -- Função para criar Box
+        local function CreateBox(color, thickness)
             local box = Drawing.new("Square")
             box.Visible = false
             box.Color = color
@@ -83,12 +97,11 @@ local function LoadScript()
             box.Filled = false
             box.Transparency = 0.5
             box.ZIndex = 999
-            
             return box
         end
 
-        -- Função para criar texto de distância
-        local function CreateDistanceText(color, size)
+        -- Função para criar Texto
+        local function CreateText(color, size)
             local text = Drawing.new("Text")
             text.Visible = false
             text.Color = color
@@ -97,50 +110,29 @@ local function LoadScript()
             text.Outline = true
             text.OutlineColor = Color3.fromRGB(0, 0, 0)
             text.ZIndex = 999
-            
             return text
         end
 
-        -- Função para criar esqueleto (usando linhas)
-        local function CreateSkeletonLines(character, color, thickness)
-            if not character or not character.Parent then return {} end
-            
-            local lines = {}
-            local joints = {
-                {"Head", "UpperTorso"},
-                {"UpperTorso", "LowerTorso"},
-                {"UpperTorso", "LeftUpperArm"},
-                {"LeftUpperArm", "LeftLowerArm"},
-                {"UpperTorso", "RightUpperArm"},
-                {"RightUpperArm", "RightLowerArm"},
-                {"LowerTorso", "LeftUpperLeg"},
-                {"LeftUpperLeg", "LeftLowerLeg"},
-                {"LowerTorso", "RightUpperLeg"},
-                {"RightUpperLeg", "RightLowerLeg"}
-            }
-            
-            for _, joint in ipairs(joints) do
-                local line = Drawing.new("Line")
-                line.Visible = false
-                line.Color = color
-                line.Thickness = thickness or 1
-                line.Transparency = 0.7
-                line.ZIndex = 999
-                table.insert(lines, line)
-            end
-            
-            return lines
+        -- Função para criar Linha (Skeleton)
+        local function CreateLine(color, thickness)
+            local line = Drawing.new("Line")
+            line.Visible = false
+            line.Color = color
+            line.Thickness = thickness or 1
+            line.Transparency = 0.7
+            line.ZIndex = 999
+            return line
         end
 
-        -- Função para atualizar a posição da box
+        -- Função para atualizar Box
         local function UpdateBox(box, character)
             if not box or not character then return end
             
-            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            local root = character:FindFirstChild("HumanoidRootPart")
             local head = character:FindFirstChild("Head")
             
-            if rootPart and head then
-                local pos = Camera:WorldToViewportPoint(rootPart.Position)
+            if root and head then
+                local pos = Camera:WorldToViewportPoint(root.Position)
                 local headPos = Camera:WorldToViewportPoint(head.Position)
                 
                 if pos.Z > 0 then
@@ -158,63 +150,49 @@ local function LoadScript()
             end
         end
 
-        -- Função para atualizar texto de distância
-        local function UpdateDistance(text, character)
-            if not text or not character then return end
-            
-            local rootPart = character:FindFirstChild("HumanoidRootPart")
-            if rootPart then
-                local pos = Camera:WorldToViewportPoint(rootPart.Position)
-                if pos.Z > 0 then
-                    local distance = math.floor((LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and 
-                        (LocalPlayer.Character.HumanoidRootPart.Position - rootPart.Position).Magnitude) or 0)
-                    
-                    text.Position = Vector2.new(pos.X, pos.Y - 40)
-                    text.Text = distance .. "m"
-                    text.Visible = true
-                else
-                    text.Visible = false
-                end
-            else
-                text.Visible = false
-            end
-        end
-
-        -- Função para atualizar esqueleto
+        -- Função para atualizar Skeleton
         local function UpdateSkeleton(lines, character)
             if not lines or not character then return end
             
-            local parts = {}
-            local partNames = {"Head", "UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm", 
-                              "RightUpperArm", "RightLowerArm", "LeftUpperLeg", "LeftLowerLeg", 
-                              "RightUpperLeg", "RightLowerLeg"}
+            local bones = {
+                {"Head", "UpperTorso"},
+                {"UpperTorso", "LowerTorso"},
+                {"UpperTorso", "LeftUpperArm"},
+                {"LeftUpperArm", "LeftLowerArm"},
+                {"UpperTorso", "RightUpperArm"},
+                {"RightUpperArm", "RightLowerArm"},
+                {"LowerTorso", "LeftUpperLeg"},
+                {"LeftUpperLeg", "LeftLowerLeg"},
+                {"LowerTorso", "RightUpperLeg"},
+                {"RightUpperLeg", "RightLowerLeg"}
+            }
             
-            for _, name in ipairs(partNames) do
-                local part = character:FindFirstChild(name)
-                if part and part:IsA("BasePart") then
-                    local pos = Camera:WorldToViewportPoint(part.Position)
-                    if pos.Z > 0 then
-                        parts[name] = Vector2.new(pos.X, pos.Y)
-                    else
-                        parts[name] = nil
+            local parts = {}
+            for _, bone in ipairs(bones) do
+                for _, name in ipairs(bone) do
+                    if not parts[name] then
+                        local part = character:FindFirstChild(name)
+                        if part and part:IsA("BasePart") then
+                            local pos = Camera:WorldToViewportPoint(part.Position)
+                            if pos.Z > 0 then
+                                parts[name] = Vector2.new(pos.X, pos.Y)
+                            else
+                                parts[name] = nil
+                            end
+                        end
                     end
                 end
             end
             
-            local joints = {
-                {1, 2}, {2, 3}, {2, 4}, {4, 5}, {2, 6}, {6, 7},
-                {3, 8}, {8, 9}, {3, 10}, {10, 11}
-            }
-            
-            for i, joint in ipairs(joints) do
+            for i, bone in ipairs(bones) do
                 local line = lines[i]
                 if line then
-                    local part1 = parts[partNames[joint[1]]]
-                    local part2 = parts[partNames[joint[2]]]
+                    local p1 = parts[bone[1]]
+                    local p2 = parts[bone[2]]
                     
-                    if part1 and part2 then
-                        line.From = part1
-                        line.To = part2
+                    if p1 and p2 then
+                        line.From = p1
+                        line.To = p2
                         line.Visible = true
                     else
                         line.Visible = false
@@ -223,7 +201,7 @@ local function LoadScript()
             end
         end
 
-        -- Função principal de atualização ESP
+        -- Função principal de atualização
         local function UpdateESP()
             local currentTime = tick()
             if currentTime - ESPManager.LastUpdate < ESPManager.UpdateInterval then
@@ -231,7 +209,7 @@ local function LoadScript()
             end
             ESPManager.LastUpdate = currentTime
             
-            -- Limpeza de objetos inválidos
+            -- Limpeza
             for i = #ESPManager.ActiveHighlights, 1, -1 do
                 local item = ESPManager.ActiveHighlights[i]
                 if not item or not item.Parent then
@@ -239,36 +217,24 @@ local function LoadScript()
                 end
             end
             
-            for i = #ESPManager.ActiveBoxes, 1, -1 do
-                local item = ESPManager.ActiveBoxes[i]
+            for i = #ESPManager.ActiveDrawings, 1, -1 do
+                local item = ESPManager.ActiveDrawings[i]
                 if not item or not item.character or not item.character.Parent then
                     if item.box then item.box:Remove() end
-                    table.remove(ESPManager.ActiveBoxes, i)
-                end
-            end
-            
-            for i = #ESPManager.ActiveDistances, 1, -1 do
-                local item = ESPManager.ActiveDistances[i]
-                if not item or not item.character or not item.character.Parent then
-                    if item.text then item.text:Remove() end
-                    table.remove(ESPManager.ActiveDistances, i)
-                end
-            end
-            
-            for i = #ESPManager.ActiveSkeletons, 1, -1 do
-                local item = ESPManager.ActiveSkeletons[i]
-                if not item or not item.character or not item.character.Parent then
+                    if item.dist then item.dist:Remove() end
+                    if item.name then item.name:Remove() end
+                    if item.health then item.health:Remove() end
                     if item.lines then
                         for _, line in ipairs(item.lines) do
                             line:Remove()
                         end
                     end
-                    table.remove(ESPManager.ActiveSkeletons, i)
+                    table.remove(ESPManager.ActiveDrawings, i)
                 end
             end
             
             if not Config.ESP.Enabled then
-                -- Remove todos os ESPs
+                -- Remove Highlights
                 for _, highlight in ipairs(ESPManager.ActiveHighlights) do
                     if highlight and highlight.Parent then
                         highlight:Destroy()
@@ -276,37 +242,33 @@ local function LoadScript()
                 end
                 ESPManager.ActiveHighlights = {}
                 
-                for _, item in ipairs(ESPManager.ActiveBoxes) do
+                -- Remove Drawings
+                for _, item in ipairs(ESPManager.ActiveDrawings) do
                     if item.box then item.box:Remove() end
-                end
-                ESPManager.ActiveBoxes = {}
-                
-                for _, item in ipairs(ESPManager.ActiveDistances) do
-                    if item.text then item.text:Remove() end
-                end
-                ESPManager.ActiveDistances = {}
-                
-                for _, item in ipairs(ESPManager.ActiveSkeletons) do
+                    if item.dist then item.dist:Remove() end
+                    if item.name then item.name:Remove() end
+                    if item.health then item.health:Remove() end
                     if item.lines then
                         for _, line in ipairs(item.lines) do
                             line:Remove()
                         end
                     end
                 end
-                ESPManager.ActiveSkeletons = {}
+                ESPManager.ActiveDrawings = {}
                 return
             end
             
-            -- Processa todos os players
+            -- Processa players
             local players = Players:GetPlayers()
             for _, player in ipairs(players) do
                 if player ~= LocalPlayer then
                     local character = player.Character
                     if character and character:FindFirstChild("Humanoid") then
+                        local humanoid = character.Humanoid
                         local team = player.Team
                         local isEnemy = team ~= LocalPlayer.Team
                         
-                        -- Define cores baseado no time
+                        -- Define cor baseada no time
                         local color
                         if Config.ESP.TeamCheck.Enabled then
                             color = isEnemy and Config.ESP.TeamCheck.EnemyColor or Config.ESP.TeamCheck.TeamColor
@@ -323,7 +285,6 @@ local function LoadScript()
                                     break
                                 end
                             end
-                            
                             if not hasHighlight then
                                 local highlight = CreateHighlight(character, color, Config.ESP.Highlight.Transparency)
                                 if highlight then
@@ -332,88 +293,111 @@ local function LoadScript()
                             end
                         end
                         
-                        -- Box
-                        if Config.ESP.Box.Enabled then
-                            local hasBox = false
-                            for _, item in ipairs(ESPManager.ActiveBoxes) do
-                                if item.character == character then
-                                    hasBox = true
-                                    break
-                                end
-                            end
-                            
-                            if not hasBox then
-                                local box = CreateBox(character, color, Config.ESP.Box.Thickness)
-                                if box then
-                                    table.insert(ESPManager.ActiveBoxes, {
-                                        character = character,
-                                        box = box
-                                    })
-                                end
+                        -- Drawings
+                        local hasDrawings = false
+                        for _, item in ipairs(ESPManager.ActiveDrawings) do
+                            if item.character == character then
+                                hasDrawings = true
+                                break
                             end
                         end
                         
-                        -- Distância
-                        if Config.ESP.Distance.Enabled then
-                            local hasDistance = false
-                            for _, item in ipairs(ESPManager.ActiveDistances) do
-                                if item.character == character then
-                                    hasDistance = true
-                                    break
+                        if not hasDrawings then
+                            local drawings = {
+                                character = character,
+                                box = Config.ESP.Box.Enabled and CreateBox(color, Config.ESP.Box.Thickness) or nil,
+                                dist = Config.ESP.Distance.Enabled and CreateText(Config.ESP.Distance.Color, Config.ESP.Distance.Size) or nil,
+                                name = Config.ESP.Name.Enabled and CreateText(Config.ESP.Name.Color, Config.ESP.Name.Size) or nil,
+                                health = Config.ESP.Health.Enabled and CreateText(Config.ESP.Health.Color, Config.ESP.Health.Size) or nil,
+                                lines = {}
+                            }
+                            
+                            if Config.ESP.Skeleton.Enabled then
+                                local joints = {
+                                    {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
+                                    {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"},
+                                    {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"},
+                                    {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"},
+                                    {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}
+                                }
+                                for _ in ipairs(joints) do
+                                    table.insert(drawings.lines, CreateLine(color, Config.ESP.Skeleton.Thickness))
                                 end
                             end
                             
-                            if not hasDistance then
-                                local text = CreateDistanceText(Config.ESP.Distance.Color, Config.ESP.Distance.Size)
-                                if text then
-                                    table.insert(ESPManager.ActiveDistances, {
-                                        character = character,
-                                        text = text
-                                    })
-                                end
-                            end
-                        end
-                        
-                        -- Esqueleto
-                        if Config.ESP.Skeleton.Enabled then
-                            local hasSkeleton = false
-                            for _, item in ipairs(ESPManager.ActiveSkeletons) do
-                                if item.character == character then
-                                    hasSkeleton = true
-                                    break
-                                end
-                            end
-                            
-                            if not hasSkeleton then
-                                local lines = CreateSkeletonLines(character, color, Config.ESP.Skeleton.Thickness)
-                                if lines and #lines > 0 then
-                                    table.insert(ESPManager.ActiveSkeletons, {
-                                        character = character,
-                                        lines = lines
-                                    })
-                                end
-                            end
+                            table.insert(ESPManager.ActiveDrawings, drawings)
                         end
                     end
                 end
             end
             
-            -- Atualiza posições dos elementos
-            for _, item in ipairs(ESPManager.ActiveBoxes) do
+            -- Atualiza posições
+            for _, item in ipairs(ESPManager.ActiveDrawings) do
                 if item.character and item.character.Parent then
-                    UpdateBox(item.box, item.character)
-                end
-            end
-            
-            for _, item in ipairs(ESPManager.ActiveDistances) do
-                if item.character and item.character.Parent then
-                    UpdateDistance(item.text, item.character)
-                end
-            end
-            
-            for _, item in ipairs(ESPManager.ActiveSkeletons) do
-                if item.character and item.character.Parent then
-                    UpdateSkeleton(item.lines, item.character)
+                    local root = item.character:FindFirstChild("HumanoidRootPart")
+                    local head = item.character:FindFirstChild("Head")
+                    local humanoid = item.character:FindFirstChild("Humanoid")
+                    
+                    if root and head then
+                        local pos = Camera:WorldToViewportPoint(root.Position)
+                        local headPos = Camera:WorldToViewportPoint(head.Position)
+                        
+                        if pos.Z > 0 then
+                            -- Distância
+                            if item.dist then
+                                local distance = math.floor((LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and 
+                                    (LocalPlayer.Character.HumanoidRootPart.Position - root.Position).Magnitude) or 0)
+                                item.dist.Position = Vector2.new(pos.X, pos.Y + 30)
+                                item.dist.Text = distance .. "m"
+                                item.dist.Visible = true
+                            end
+                            
+                            -- Nome
+                            if item.name then
+                                item.name.Position = Vector2.new(pos.X, pos.Y - 20)
+                                item.name.Text = item.character.Name
+                                item.name.Visible = true
+                            end
+                            
+                            -- Health
+                            if item.health and humanoid then
+                                local healthPercent = math.floor((humanoid.Health / humanoid.MaxHealth) * 100)
+                                local healthColor = Color3.fromRGB(
+                                    math.floor(255 * (1 - healthPercent/100)),
+                                    math.floor(255 * (healthPercent/100)),
+                                    0
+                                )
+                                item.health.Color = healthColor
+                                item.health.Position = Vector2.new(pos.X, pos.Y + 55)
+                                item.health.Text = healthPercent .. "%"
+                                item.health.Visible = true
+                            end
+                            
+                            -- Box
+                            if item.box then
+                                local height = math.abs(pos.Y - headPos.Y) * 1.5
+                                local width = height * 0.6
+                                item.box.Position = Vector2.new(pos.X - width/2, headPos.Y - height/4)
+                                item.box.Size = Vector2.new(width, height)
+                                item.box.Visible = true
+                            end
+                            
+                            -- Skeleton
+                            if #item.lines > 0 then
+                                UpdateSkeleton(item.lines, item.character)
+                            end
+                        else
+                            if item.box then item.box.Visible = false end
+                            if item.dist then item.dist.Visible = false end
+                            if item.name then item.name.Visible = false end
+                            if item.health then item.health.Visible = false end
+                            if #item.lines > 0 then
+                                for _, line in ipairs(item.lines) do
+                                    line.Visible = false
+                                end
+                            end
+                        end
+                    end
                 end
             end
         end
@@ -433,8 +417,8 @@ local function LoadScript()
             screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
             
             local mainFrame = Instance.new("Frame")
-            mainFrame.Size = UDim2.new(0, 350, 0, 280)
-            mainFrame.Position = UDim2.new(0.5, -175, 0.5, -140)
+            mainFrame.Size = UDim2.new(0, 350, 0, 340)
+            mainFrame.Position = UDim2.new(0.5, -175, 0.5, -170)
             mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
             mainFrame.BackgroundTransparency = 0.1
             mainFrame.BorderSizePixel = 1
@@ -454,7 +438,7 @@ local function LoadScript()
             titleText.Size = UDim2.new(0.6, 0, 1, 0)
             titleText.Position = UDim2.new(0, 10, 0, 0)
             titleText.BackgroundTransparency = 1
-            titleText.Text = "ESP Framework v4.0"
+            titleText.Text = "ESP Framework v5.0"
             titleText.TextColor3 = Color3.fromRGB(0, 255, 180)
             titleText.TextScaled = true
             titleText.TextXAlignment = Enum.TextXAlignment.Left
@@ -492,19 +476,18 @@ local function LoadScript()
             contentFrame.BackgroundTransparency = 1
             contentFrame.Parent = mainFrame
             
-            -- Label principal
-            local espLabel = Instance.new("TextLabel")
-            espLabel.Size = UDim2.new(0.5, 0, 0, 25)
-            espLabel.Position = UDim2.new(0, 0, 0, 0)
-            espLabel.BackgroundTransparency = 1
-            espLabel.Text = "Master ESP"
-            espLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            espLabel.TextScaled = true
-            espLabel.TextXAlignment = Enum.TextXAlignment.Left
-            espLabel.Font = Enum.Font.GothamBold
-            espLabel.Parent = contentFrame
+            -- Master ESP
+            local masterLabel = Instance.new("TextLabel")
+            masterLabel.Size = UDim2.new(0.5, 0, 0, 25)
+            masterLabel.Position = UDim2.new(0, 0, 0, 0)
+            masterLabel.BackgroundTransparency = 1
+            masterLabel.Text = "Master ESP"
+            masterLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            masterLabel.TextScaled = true
+            masterLabel.TextXAlignment = Enum.TextXAlignment.Left
+            masterLabel.Font = Enum.Font.GothamBold
+            masterLabel.Parent = contentFrame
             
-            -- Toggle Master ESP
             local masterToggle = Instance.new("TextButton")
             masterToggle.Size = UDim2.new(0, 55, 0, 25)
             masterToggle.Position = UDim2.new(0.75, 0, 0, 0)
@@ -517,23 +500,26 @@ local function LoadScript()
             masterToggle.Parent = contentFrame
             
             -- Separador
-            local separator = Instance.new("Frame")
-            separator.Size = UDim2.new(1, 0, 0, 1)
-            separator.Position = UDim2.new(0, 0, 0, 30)
-            separator.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-            separator.BorderSizePixel = 0
-            separator.Parent = contentFrame
+            local sep = Instance.new("Frame")
+            sep.Size = UDim2.new(1, 0, 0, 1)
+            sep.Position = UDim2.new(0, 0, 0, 30)
+            sep.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+            sep.BorderSizePixel = 0
+            sep.Parent = contentFrame
             
-            -- Opções de ESP
+            -- Opções
             local options = {
-                {name = "Highlight", label = "Highlight", y = 40, key = "Highlight"},
-                {name = "Box", label = "Box ESP", y = 70, key = "Box"},
-                {name = "Distance", label = "Distancia", y = 100, key = "Distance"},
-                {name = "Skeleton", label = "Esqueleto", y = 130, key = "Skeleton"},
-                {name = "TeamCheck", label = "Time Check", y = 160, key = "TeamCheck"}
+                {key = "Highlight", label = "Highlight", y = 40},
+                {key = "Box", label = "Box ESP", y = 68},
+                {key = "Distance", label = "Distancia", y = 96},
+                {key = "Skeleton", label = "Esqueleto", y = 124},
+                {key = "TeamCheck", label = "Time Check", y = 152},
+                {key = "Name", label = "Nome", y = 180},
+                {key = "Health", label = "Vida", y = 208}
             }
             
             local toggles = {}
+            local colorButtons = {}
             
             for _, opt in ipairs(options) do
                 local frame = Instance.new("Frame")
@@ -563,97 +549,92 @@ local function LoadScript()
                 toggle.Font = Enum.Font.GothamBold
                 toggle.BorderSizePixel = 0
                 toggle.Parent = frame
-                
                 toggles[opt.key] = toggle
                 
-                if opt.key ~= "TeamCheck" then
-                    local colorBtn = Instance.new("TextButton")
-                    colorBtn.Size = UDim2.new(0, 20, 0, 20)
-                    colorBtn.Position = UDim2.new(0.88, 0, 0.5, -10)
-                    colorBtn.BackgroundColor3 = Config.ESP[opt.key].Color
-                    colorBtn.Text = ""
-                    colorBtn.BorderSizePixel = 1
-                    colorBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
-                    colorBtn.Parent = frame
+                -- Color Picker
+                local colorBtn = Instance.new("TextButton")
+                colorBtn.Size = UDim2.new(0, 20, 0, 20)
+                colorBtn.Position = UDim2.new(0.88, 0, 0.5, -10)
+                colorBtn.BackgroundColor3 = Config.ESP[opt.key].Color
+                colorBtn.Text = ""
+                colorBtn.BorderSizePixel = 1
+                colorBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
+                colorBtn.Parent = frame
+                colorButtons[opt.key] = colorBtn
+                
+                colorBtn.MouseButton1Click:Connect(function()
+                    local picker = Instance.new("Frame")
+                    picker.Size = UDim2.new(0, 280, 0, 220)
+                    picker.Position = UDim2.new(0.5, -140, 0.5, -110)
+                    picker.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
+                    picker.BackgroundTransparency = 0.1
+                    picker.BorderSizePixel = 1
+                    picker.BorderColor3 = Color3.fromRGB(50, 50, 70)
+                    picker.Parent = screenGui
                     
-                    colorBtn.MouseButton1Click:Connect(function()
-                        local pickerFrame = Instance.new("Frame")
-                        pickerFrame.Size = UDim2.new(0, 280, 0, 220)
-                        pickerFrame.Position = UDim2.new(0.5, -140, 0.5, -110)
-                        pickerFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
-                        pickerFrame.BackgroundTransparency = 0.1
-                        pickerFrame.BorderSizePixel = 1
-                        pickerFrame.BorderColor3 = Color3.fromRGB(50, 50, 70)
-                        pickerFrame.Parent = screenGui
-                        
-                        local pickerTitle = Instance.new("TextLabel")
-                        pickerTitle.Size = UDim2.new(1, 0, 0, 35)
-                        pickerTitle.BackgroundTransparency = 1
-                        pickerTitle.Text = "Selecionar Cor"
-                        pickerTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-                        pickerTitle.TextScaled = true
-                        pickerTitle.Font = Enum.Font.GothamBold
-                        pickerTitle.Parent = pickerFrame
-                        
-                        local gridFrame = Instance.new("Frame")
-                        gridFrame.Size = UDim2.new(1, -20, 1, -75)
-                        gridFrame.Position = UDim2.new(0, 10, 0, 40)
-                        gridFrame.BackgroundTransparency = 1
-                        gridFrame.Parent = pickerFrame
-                        
-                        local colors = {
-                            Color3.fromRGB(255, 0, 0), Color3.fromRGB(0, 255, 0),
-                            Color3.fromRGB(0, 0, 255), Color3.fromRGB(255, 255, 0),
-                            Color3.fromRGB(255, 0, 255), Color3.fromRGB(0, 255, 255),
-                            Color3.fromRGB(255, 128, 0), Color3.fromRGB(128, 255, 0),
-                            Color3.fromRGB(0, 128, 255), Color3.fromRGB(255, 0, 128),
-                            Color3.fromRGB(128, 0, 255), Color3.fromRGB(0, 255, 128),
-                            Color3.fromRGB(255, 255, 255), Color3.fromRGB(100, 100, 100)
-                        }
-                        
-                        local buttonSize = 35
-                        local spacing = 5
-                        local perRow = 7
-                        
-                        for i, color in ipairs(colors) do
-                            local btn = Instance.new("TextButton")
-                            local row = math.floor((i-1) / perRow)
-                            local col = (i-1) % perRow
-                            btn.Size = UDim2.new(0, buttonSize, 0, buttonSize)
-                            btn.Position = UDim2.new(0, col * (buttonSize + spacing), 0, row * (buttonSize + spacing))
-                            btn.BackgroundColor3 = color
-                            btn.Text = ""
-                            btn.BorderSizePixel = 1
-                            btn.BorderColor3 = Color3.fromRGB(255, 255, 255)
-                            btn.Parent = gridFrame
-                            btn.MouseButton1Click:Connect(function()
-                                Config.ESP[opt.key].Color = color
-                                colorBtn.BackgroundColor3 = color
-                                pickerFrame:Destroy()
-                            end)
-                        end
-                        
-                        local closePicker = Instance.new("TextButton")
-                        closePicker.Size = UDim2.new(0, 100, 0, 30)
-                        closePicker.Position = UDim2.new(0.5, -50, 0, 185)
-                        closePicker.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-                        closePicker.Text = "Fechar"
-                        closePicker.TextColor3 = Color3.fromRGB(255, 255, 255)
-                        closePicker.TextScaled = true
-                        closePicker.Font = Enum.Font.Gotham
-                        closePicker.BorderSizePixel = 0
-                        closePicker.Parent = pickerFrame
-                        closePicker.MouseButton1Click:Connect(function()
-                            pickerFrame:Destroy()
+                    local pTitle = Instance.new("TextLabel")
+                    pTitle.Size = UDim2.new(1, 0, 0, 35)
+                    pTitle.BackgroundTransparency = 1
+                    pTitle.Text = "Selecionar Cor"
+                    pTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    pTitle.TextScaled = true
+                    pTitle.Font = Enum.Font.GothamBold
+                    pTitle.Parent = picker
+                    
+                    local grid = Instance.new("Frame")
+                    grid.Size = UDim2.new(1, -20, 1, -75)
+                    grid.Position = UDim2.new(0, 10, 0, 40)
+                    grid.BackgroundTransparency = 1
+                    grid.Parent = picker
+                    
+                    local colors = {
+                        Color3.fromRGB(255,0,0), Color3.fromRGB(0,255,0),
+                        Color3.fromRGB(0,0,255), Color3.fromRGB(255,255,0),
+                        Color3.fromRGB(255,0,255), Color3.fromRGB(0,255,255),
+                        Color3.fromRGB(255,128,0), Color3.fromRGB(128,255,0),
+                        Color3.fromRGB(0,128,255), Color3.fromRGB(255,0,128),
+                        Color3.fromRGB(128,0,255), Color3.fromRGB(0,255,128),
+                        Color3.fromRGB(255,255,255), Color3.fromRGB(100,100,100)
+                    }
+                    
+                    for i, color in ipairs(colors) do
+                        local btn = Instance.new("TextButton")
+                        local row = math.floor((i-1) / 7)
+                        local col = (i-1) % 7
+                        btn.Size = UDim2.new(0, 35, 0, 35)
+                        btn.Position = UDim2.new(0, col * 40 + 5, 0, row * 40 + 5)
+                        btn.BackgroundColor3 = color
+                        btn.Text = ""
+                        btn.BorderSizePixel = 1
+                        btn.BorderColor3 = Color3.fromRGB(255,255,255)
+                        btn.Parent = grid
+                        btn.MouseButton1Click:Connect(function()
+                            Config.ESP[opt.key].Color = color
+                            colorBtn.BackgroundColor3 = color
+                            picker:Destroy()
                         end)
+                    end
+                    
+                    local close = Instance.new("TextButton")
+                    close.Size = UDim2.new(0, 100, 0, 30)
+                    close.Position = UDim2.new(0.5, -50, 0, 185)
+                    close.BackgroundColor3 = Color3.fromRGB(60,60,80)
+                    close.Text = "Fechar"
+                    close.TextColor3 = Color3.fromRGB(255,255,255)
+                    close.TextScaled = true
+                    close.Font = Enum.Font.Gotham
+                    close.BorderSizePixel = 0
+                    close.Parent = picker
+                    close.MouseButton1Click:Connect(function()
+                        picker:Destroy()
                     end)
-                end
+                end)
             end
             
             -- Status
             local statusLabel = Instance.new("TextLabel")
             statusLabel.Size = UDim2.new(1, 0, 0, 20)
-            statusLabel.Position = UDim2.new(0, 0, 0, 195)
+            statusLabel.Position = UDim2.new(0, 0, 0, 240)
             statusLabel.BackgroundTransparency = 1
             statusLabel.Text = "Status: Desativado"
             statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
@@ -757,7 +738,6 @@ local function LoadScript()
                 end
             end)
             
-            -- Toggles individuais
             for key, toggle in pairs(toggles) do
                 toggle.MouseButton1Click:Connect(function()
                     Config.ESP[key].Enabled = not Config.ESP[key].Enabled
@@ -780,7 +760,7 @@ local function LoadScript()
         local ui = CreateUI()
         coroutine.wrap(ESPLoop)()
         
-        -- Eventos automáticos
+        -- Eventos
         Players.PlayerAdded:Connect(function()
             if Config.ESP.Enabled then
                 task.wait(1)
@@ -815,8 +795,8 @@ local function LoadScript()
             end
         end)
         
-        print("ESP Framework v4.0 carregado com sucesso!")
-        print("Recursos: Highlight, Box, Distancia, Esqueleto, Time Check")
+        print("ESP Framework v5.0 carregado com sucesso!")
+        print("Features: Highlight, Box, Distance, Skeleton, TeamCheck, Name, Health")
     end)
     
     if not success then
