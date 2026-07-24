@@ -1,439 +1,475 @@
---[[
-    Interface #BACKROOMS SCRIPT
-    Baseado no layout da imagem de referência.
-    Desenvolvido para Roblox com Luau.
-]]
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
--- =============== VARIÁVEIS GLOBAIS ===============
-local ScreenGui = Instance.new("ScreenGui")
-local MainFrame = Instance.new("Frame")
-local HeaderFrame = Instance.new("Frame")
-local HeaderText = Instance.new("TextLabel")
-local SidebarFrame = Instance.new("Frame")
-local DividerLine = Instance.new("Frame")
-local ContentFrame = Instance.new("Frame")
-
--- Elementos da sidebar
-local EspButton = Instance.new("TextButton")
-local StaminaButton = Instance.new("TextButton")
-
--- Elementos do conteúdo ESP
-local EspContent = Instance.new("Frame")
-local ItemsToggle = Instance.new("Frame")
-local EntitiesToggle = Instance.new("Frame")
-local PlayersToggle = Instance.new("Frame")
-
--- Elementos do conteúdo Stamina
-local StaminaContent = Instance.new("Frame")
-local InfiniteStaminaToggle = Instance.new("Frame")
-
--- Configurações
-local Settings = {
-    Esp = {
-        Items = { Enabled = false, Color = Color3.fromRGB(13, 191, 37) },
-        Entities = { Enabled = false, Color = Color3.fromRGB(255, 17, 0) },
-        Players = { Enabled = false, Color = Color3.fromRGB(196, 82, 196) }
+local ESP = {
+    Items = {
+        Enabled = false,
+        Color = Color3.fromHex("#0dbf25")
     },
-    Stamina = {
-        Infinite = false
+    Entities = {
+        Enabled = false,
+        Color = Color3.fromHex("#ff1100")
+    },
+    Players = {
+        Enabled = false,
+        Color = Color3.fromHex("#c452c4")
     }
 }
 
--- =============== FUNÇÕES AUXILIARES ===============
-local function CreateToggle(parent, label, defaultColor)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 50)
-    frame.BackgroundTransparency = 1
-    frame.Parent = parent
+local InfiniteStamina = {
+    Enabled = false
+}
 
-    local labelText = Instance.new("TextLabel")
-    labelText.Size = UDim2.new(0.7, 0, 1, 0)
-    labelText.BackgroundTransparency = 1
-    labelText.Text = label
-    labelText.TextColor3 = Color3.fromRGB(220, 220, 220)
-    labelText.TextSize = 18
-    labelText.TextXAlignment = Enum.TextXAlignment.Left
-    labelText.Font = Enum.Font.Gotham
-    labelText.Parent = frame
+local ESPObjects = {
+    Items = {},
+    Entities = {},
+    Players = {}
+}
 
-    local toggleContainer = Instance.new("Frame")
-    toggleContainer.Size = UDim2.new(0, 100, 0, 34)
-    toggleContainer.Position = UDim2.new(0.75, 0, 0.5, -17)
-    toggleContainer.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    toggleContainer.BackgroundTransparency = 0.3
-    toggleContainer.BorderSizePixel = 0
-    toggleContainer.ClipsDescendants = true
-    toggleContainer.Parent = frame
-
-    local toggleBg = Instance.new("Frame")
-    toggleBg.Size = UDim2.new(1, 0, 1, 0)
-    toggleBg.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    toggleBg.BorderSizePixel = 0
-    toggleBg.Parent = toggleContainer
-
-    local toggleCircle = Instance.new("Frame")
-    toggleCircle.Size = UDim2.new(0, 28, 0, 28)
-    toggleCircle.Position = UDim2.new(0, 3, 0.5, -14)
-    toggleCircle.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-    toggleCircle.BorderSizePixel = 0
-    toggleCircle.Parent = toggleContainer
-
-    local colorPicker = Instance.new("ImageButton")
-    colorPicker.Size = UDim2.new(0, 28, 0, 28)
-    colorPicker.Position = UDim2.new(0.92, 0, 0.5, -14)
-    colorPicker.BackgroundColor3 = defaultColor or Color3.fromRGB(13, 191, 37)
-    colorPicker.BorderSizePixel = 1
-    colorPicker.BorderColor3 = Color3.fromRGB(255, 255, 255)
-    colorPicker.Image = "rbxassetid://10505080859"
-    colorPicker.Parent = frame
-
+local function CreateUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "BackroomScriptGUI"
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 350, 0, 200)
+    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -100)
+    mainFrame.BackgroundColor3 = Color3.fromHex("#1a1a2e")
+    mainFrame.BorderSizePixel = 0
+    mainFrame.BackgroundTransparency = 0.1
+    mainFrame.Parent = screenGui
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Position = UDim2.new(0, 0, 0, 5)
+    title.BackgroundTransparency = 1
+    title.Text = "#BACKROOMSCRIPT"
+    title.TextColor3 = Color3.fromHex("#00ff88")
+    title.TextScaled = true
+    title.Font = Enum.Font.Code
+    title.Parent = mainFrame
+    
+    local espLabel = Instance.new("TextLabel")
+    espLabel.Size = UDim2.new(1, 0, 0, 25)
+    espLabel.Position = UDim2.new(0, 0, 0, 40)
+    espLabel.BackgroundTransparency = 1
+    espLabel.Text = "Esp"
+    espLabel.TextColor3 = Color3.fromHex("#ffffff")
+    espLabel.TextScaled = true
+    espLabel.Font = Enum.Font.Code
+    espLabel.Parent = mainFrame
+    
+    local itemsFrame = Instance.new("Frame")
+    itemsFrame.Size = UDim2.new(1, 0, 0, 30)
+    itemsFrame.Position = UDim2.new(0, 0, 0, 70)
+    itemsFrame.BackgroundTransparency = 1
+    itemsFrame.Parent = mainFrame
+    
+    local itemsLabel = Instance.new("TextLabel")
+    itemsLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    itemsLabel.Position = UDim2.new(0, 5, 0, 0)
+    itemsLabel.BackgroundTransparency = 1
+    itemsLabel.Text = "Visualizar itens"
+    itemsLabel.TextColor3 = Color3.fromHex("#ffffff")
+    itemsLabel.TextScaled = true
+    itemsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    itemsLabel.Font = Enum.Font.Code
+    itemsLabel.Parent = itemsFrame
+    
+    local itemsToggle = Instance.new("TextButton")
+    itemsToggle.Size = UDim2.new(0, 40, 0, 20)
+    itemsToggle.Position = UDim2.new(0.7, 0, 0.5, -10)
+    itemsToggle.BackgroundColor3 = Color3.fromHex("#333333")
+    itemsToggle.Text = "OFF"
+    itemsToggle.TextColor3 = Color3.fromHex("#ff0000")
+    itemsToggle.TextScaled = true
+    itemsToggle.Font = Enum.Font.Code
+    itemsToggle.Parent = itemsFrame
+    
+    local itemsColor = Instance.new("TextButton")
+    itemsColor.Size = UDim2.new(0, 25, 0, 20)
+    itemsColor.Position = UDim2.new(0.85, 0, 0.5, -10)
+    itemsColor.BackgroundColor3 = Color3.fromHex("#0dbf25")
+    itemsColor.Text = ""
+    itemsColor.BorderSizePixel = 1
+    itemsColor.BorderColor3 = Color3.fromHex("#ffffff")
+    itemsColor.Parent = itemsFrame
+    
+    local entitiesFrame = Instance.new("Frame")
+    entitiesFrame.Size = UDim2.new(1, 0, 0, 30)
+    entitiesFrame.Position = UDim2.new(0, 0, 0, 105)
+    entitiesFrame.BackgroundTransparency = 1
+    entitiesFrame.Parent = mainFrame
+    
+    local entitiesLabel = Instance.new("TextLabel")
+    entitiesLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    entitiesLabel.Position = UDim2.new(0, 5, 0, 0)
+    entitiesLabel.BackgroundTransparency = 1
+    entitiesLabel.Text = "Visualizar entidades"
+    entitiesLabel.TextColor3 = Color3.fromHex("#ffffff")
+    entitiesLabel.TextScaled = true
+    entitiesLabel.TextXAlignment = Enum.TextXAlignment.Left
+    entitiesLabel.Font = Enum.Font.Code
+    entitiesLabel.Parent = entitiesFrame
+    
+    local entitiesToggle = Instance.new("TextButton")
+    entitiesToggle.Size = UDim2.new(0, 40, 0, 20)
+    entitiesToggle.Position = UDim2.new(0.7, 0, 0.5, -10)
+    entitiesToggle.BackgroundColor3 = Color3.fromHex("#333333")
+    entitiesToggle.Text = "OFF"
+    entitiesToggle.TextColor3 = Color3.fromHex("#ff0000")
+    entitiesToggle.TextScaled = true
+    entitiesToggle.Font = Enum.Font.Code
+    entitiesToggle.Parent = entitiesFrame
+    
+    local entitiesColor = Instance.new("TextButton")
+    entitiesColor.Size = UDim2.new(0, 25, 0, 20)
+    entitiesColor.Position = UDim2.new(0.85, 0, 0.5, -10)
+    entitiesColor.BackgroundColor3 = Color3.fromHex("#ff1100")
+    entitiesColor.Text = ""
+    entitiesColor.BorderSizePixel = 1
+    entitiesColor.BorderColor3 = Color3.fromHex("#ffffff")
+    entitiesColor.Parent = entitiesFrame
+    
+    local playersFrame = Instance.new("Frame")
+    playersFrame.Size = UDim2.new(1, 0, 0, 30)
+    playersFrame.Position = UDim2.new(0, 0, 0, 140)
+    playersFrame.BackgroundTransparency = 1
+    playersFrame.Parent = mainFrame
+    
+    local playersLabel = Instance.new("TextLabel")
+    playersLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    playersLabel.Position = UDim2.new(0, 5, 0, 0)
+    playersLabel.BackgroundTransparency = 1
+    playersLabel.Text = "Visualizar players"
+    playersLabel.TextColor3 = Color3.fromHex("#ffffff")
+    playersLabel.TextScaled = true
+    playersLabel.TextXAlignment = Enum.TextXAlignment.Left
+    playersLabel.Font = Enum.Font.Code
+    playersLabel.Parent = playersFrame
+    
+    local playersToggle = Instance.new("TextButton")
+    playersToggle.Size = UDim2.new(0, 40, 0, 20)
+    playersToggle.Position = UDim2.new(0.7, 0, 0.5, -10)
+    playersToggle.BackgroundColor3 = Color3.fromHex("#333333")
+    playersToggle.Text = "OFF"
+    playersToggle.TextColor3 = Color3.fromHex("#ff0000")
+    playersToggle.TextScaled = true
+    playersToggle.Font = Enum.Font.Code
+    playersToggle.Parent = playersFrame
+    
+    local playersColor = Instance.new("TextButton")
+    playersColor.Size = UDim2.new(0, 25, 0, 20)
+    playersColor.Position = UDim2.new(0.85, 0, 0.5, -10)
+    playersColor.BackgroundColor3 = Color3.fromHex("#c452c4")
+    playersColor.Text = ""
+    playersColor.BorderSizePixel = 1
+    playersColor.BorderColor3 = Color3.fromHex("#ffffff")
+    playersColor.Parent = playersFrame
+    
+    local staminaButton = Instance.new("TextButton")
+    staminaButton.Size = UDim2.new(0, 80, 0, 25)
+    staminaButton.Position = UDim2.new(0.8, 0, 0, 5)
+    staminaButton.BackgroundColor3 = Color3.fromHex("#00ff88")
+    staminaButton.Text = "Stamina"
+    staminaButton.TextColor3 = Color3.fromHex("#000000")
+    staminaButton.TextScaled = true
+    staminaButton.Font = Enum.Font.Code
+    staminaButton.Parent = mainFrame
+    
+    local staminaFrame = Instance.new("Frame")
+    staminaFrame.Name = "StaminaFrame"
+    staminaFrame.Size = UDim2.new(0, 350, 0, 200)
+    staminaFrame.Position = UDim2.new(0.5, -175, 0.5, -100)
+    staminaFrame.BackgroundColor3 = Color3.fromHex("#1a1a2e")
+    staminaFrame.BorderSizePixel = 0
+    staminaFrame.BackgroundTransparency = 0.1
+    staminaFrame.Visible = false
+    staminaFrame.Parent = screenGui
+    
+    local staminaTitle = Instance.new("TextLabel")
+    staminaTitle.Size = UDim2.new(1, 0, 0, 30)
+    staminaTitle.Position = UDim2.new(0, 0, 0, 5)
+    staminaTitle.BackgroundTransparency = 1
+    staminaTitle.Text = "#BACKROOMSCRIPT"
+    staminaTitle.TextColor3 = Color3.fromHex("#00ff88")
+    staminaTitle.TextScaled = true
+    staminaTitle.Font = Enum.Font.Code
+    staminaTitle.Parent = staminaFrame
+    
+    local staminaLabel = Instance.new("TextLabel")
+    staminaLabel.Size = UDim2.new(1, 0, 0, 25)
+    staminaLabel.Position = UDim2.new(0, 0, 0, 40)
+    staminaLabel.BackgroundTransparency = 1
+    staminaLabel.Text = "Stamina"
+    staminaLabel.TextColor3 = Color3.fromHex("#ffffff")
+    staminaLabel.TextScaled = true
+    staminaLabel.Font = Enum.Font.Code
+    staminaLabel.Parent = staminaFrame
+    
+    local infiniteStaminaFrame = Instance.new("Frame")
+    infiniteStaminaFrame.Size = UDim2.new(1, 0, 0, 30)
+    infiniteStaminaFrame.Position = UDim2.new(0, 0, 0, 70)
+    infiniteStaminaFrame.BackgroundTransparency = 1
+    infiniteStaminaFrame.Parent = staminaFrame
+    
+    local infiniteStaminaLabel = Instance.new("TextLabel")
+    infiniteStaminaLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    infiniteStaminaLabel.Position = UDim2.new(0, 5, 0, 0)
+    infiniteStaminaLabel.BackgroundTransparency = 1
+    infiniteStaminaLabel.Text = "Stamina infinita"
+    infiniteStaminaLabel.TextColor3 = Color3.fromHex("#ffffff")
+    infiniteStaminaLabel.TextScaled = true
+    infiniteStaminaLabel.TextXAlignment = Enum.TextXAlignment.Left
+    infiniteStaminaLabel.Font = Enum.Font.Code
+    infiniteStaminaLabel.Parent = infiniteStaminaFrame
+    
+    local infiniteStaminaToggle = Instance.new("TextButton")
+    infiniteStaminaToggle.Size = UDim2.new(0, 40, 0, 20)
+    infiniteStaminaToggle.Position = UDim2.new(0.7, 0, 0.5, -10)
+    infiniteStaminaToggle.BackgroundColor3 = Color3.fromHex("#333333")
+    infiniteStaminaToggle.Text = "OFF"
+    infiniteStaminaToggle.TextColor3 = Color3.fromHex("#ff0000")
+    infiniteStaminaToggle.TextScaled = true
+    infiniteStaminaToggle.Font = Enum.Font.Code
+    infiniteStaminaToggle.Parent = infiniteStaminaFrame
+    
+    local espButton = Instance.new("TextButton")
+    espButton.Size = UDim2.new(0, 80, 0, 25)
+    espButton.Position = UDim2.new(0.8, 0, 0, 5)
+    espButton.BackgroundColor3 = Color3.fromHex("#00ff88")
+    espButton.Text = "Esp"
+    espButton.TextColor3 = Color3.fromHex("#000000")
+    espButton.TextScaled = true
+    espButton.Font = Enum.Font.Code
+    espButton.Parent = staminaFrame
+    
+    local function ToggleESP(toggle, espType)
+        local isOn = toggle.Text == "ON"
+        toggle.Text = isOn and "OFF" or "ON"
+        toggle.TextColor3 = isOn and Color3.fromHex("#ff0000") or Color3.fromHex("#00ff00")
+        toggle.BackgroundColor3 = isOn and Color3.fromHex("#333333") or Color3.fromHex("#00aa00")
+        ESP[espType].Enabled = not isOn
+        
+        if not isOn then
+            ClearESP(espType)
+        end
+    end
+    
+    local function ToggleStamina()
+        local isOn = infiniteStaminaToggle.Text == "ON"
+        infiniteStaminaToggle.Text = isOn and "OFF" or "ON"
+        infiniteStaminaToggle.TextColor3 = isOn and Color3.fromHex("#ff0000") or Color3.fromHex("#00ff00")
+        infiniteStaminaToggle.BackgroundColor3 = isOn and Color3.fromHex("#333333") or Color3.fromHex("#00aa00")
+        InfiniteStamina.Enabled = not isOn
+    end
+    
+    itemsToggle.MouseButton1Click:Connect(function()
+        ToggleESP(itemsToggle, "Items")
+    end)
+    
+    entitiesToggle.MouseButton1Click:Connect(function()
+        ToggleESP(entitiesToggle, "Entities")
+    end)
+    
+    playersToggle.MouseButton1Click:Connect(function()
+        ToggleESP(playersToggle, "Players")
+    end)
+    
+    infiniteStaminaToggle.MouseButton1Click:Connect(function()
+        ToggleStamina()
+    end)
+    
+    local function SetupColorPicker(button, espType)
+        button.MouseButton1Click:Connect(function()
+            local colorPicker = Instance.new("Frame")
+            colorPicker.Size = UDim2.new(0, 200, 0, 150)
+            colorPicker.Position = UDim2.new(0.5, -100, 0.5, -75)
+            colorPicker.BackgroundColor3 = Color3.fromHex("#1a1a2e")
+            colorPicker.BorderSizePixel = 0
+            colorPicker.Parent = screenGui
+            
+            local colorGrid = Instance.new("Frame")
+            colorGrid.Size = UDim2.new(1, -10, 1, -40)
+            colorGrid.Position = UDim2.new(0, 5, 0, 5)
+            colorGrid.BackgroundTransparency = 1
+            colorGrid.Parent = colorPicker
+            
+            local colors = {
+                Color3.fromHex("#ff0000"), Color3.fromHex("#00ff00"), Color3.fromHex("#0000ff"),
+                Color3.fromHex("#ffff00"), Color3.fromHex("#ff00ff"), Color3.fromHex("#00ffff"),
+                Color3.fromHex("#ffffff"), Color3.fromHex("#888888"), Color3.fromHex("#000000"),
+                Color3.fromHex("#ff8800"), Color3.fromHex("#88ff00"), Color3.fromHex("#0088ff")
+            }
+            
+            for i, color in ipairs(colors) do
+                local colorBtn = Instance.new("TextButton")
+                colorBtn.Size = UDim2.new(0, 30, 0, 30)
+                colorBtn.Position = UDim2.new(0, ((i-1) % 4) * 35 + 10, 0, math.floor((i-1) / 4) * 35 + 10)
+                colorBtn.BackgroundColor3 = color
+                colorBtn.Text = ""
+                colorBtn.BorderSizePixel = 1
+                colorBtn.BorderColor3 = Color3.fromHex("#ffffff")
+                colorBtn.Parent = colorGrid
+                
+                colorBtn.MouseButton1Click:Connect(function()
+                    ESP[espType].Color = color
+                    button.BackgroundColor3 = color
+                    colorPicker:Destroy()
+                    
+                    if ESP[espType].Enabled then
+                        ClearESP(espType)
+                    end
+                end)
+            end
+            
+            local closeBtn = Instance.new("TextButton")
+            closeBtn.Size = UDim2.new(0, 50, 0, 25)
+            closeBtn.Position = UDim2.new(0.5, -25, 0, 120)
+            closeBtn.BackgroundColor3 = Color3.fromHex("#ff0000")
+            closeBtn.Text = "Fechar"
+            closeBtn.TextColor3 = Color3.fromHex("#ffffff")
+            closeBtn.TextScaled = true
+            closeBtn.Font = Enum.Font.Code
+            closeBtn.Parent = colorPicker
+            
+            closeBtn.MouseButton1Click:Connect(function()
+                colorPicker:Destroy()
+            end)
+        end)
+    end
+    
+    SetupColorPicker(itemsColor, "Items")
+    SetupColorPicker(entitiesColor, "Entities")
+    SetupColorPicker(playersColor, "Players")
+    
+    staminaButton.MouseButton1Click:Connect(function()
+        mainFrame.Visible = false
+        staminaFrame.Visible = true
+    end)
+    
+    espButton.MouseButton1Click:Connect(function()
+        staminaFrame.Visible = false
+        mainFrame.Visible = true
+    end)
+    
     return {
-        Frame = frame,
-        ToggleContainer = toggleContainer,
-        ToggleBg = toggleBg,
-        ToggleCircle = toggleCircle,
-        ColorPicker = colorPicker,
-        Label = labelText,
-        State = false
+        MainFrame = mainFrame,
+        StaminaFrame = staminaFrame,
+        ItemsToggle = itemsToggle,
+        EntitiesToggle = entitiesToggle,
+        PlayersToggle = playersToggle,
+        InfiniteStaminaToggle = infiniteStaminaToggle,
+        ItemsColor = itemsColor,
+        EntitiesColor = entitiesColor,
+        PlayersColor = playersColor
     }
 end
 
-local function UpdateToggleVisual(toggle, state)
-    toggle.State = state
-    if state then
-        toggle.ToggleBg.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-        toggle.ToggleCircle.Position = UDim2.new(0, 69, 0.5, -14)
-    else
-        toggle.ToggleBg.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-        toggle.ToggleCircle.Position = UDim2.new(0, 3, 0.5, -14)
+local function ClearESP(type)
+    for _, obj in ipairs(ESPObjects[type]) do
+        if obj and obj.Parent then
+            obj:Destroy()
+        end
+    end
+    ESPObjects[type] = {}
+end
+
+local function CreateChams(part, color)
+    if not part or not part.Parent then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.FillColor = color
+    highlight.OutlineColor = color
+    highlight.FillTransparency = 0.2
+    highlight.OutlineTransparency = 0.2
+    highlight.Adornee = part
+    highlight.Parent = part
+    return highlight
+end
+
+local function ProcessEntities()
+    if ESP.Items.Enabled then
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Parent and obj.Parent:IsA("Model") then
+                local model = obj.Parent
+                if model.Name:lower():match("item") or model.Name:lower():match("value") or 
+                   model.Name:lower():match("collect") or model.Name:lower():match("pickup") then
+                    local highlight = CreateChams(obj, ESP.Items.Color)
+                    if highlight then
+                        table.insert(ESPObjects.Items, highlight)
+                    end
+                end
+            end
+        end
+    end
+    
+    if ESP.Entities.Enabled then
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Parent and obj.Parent:IsA("Model") then
+                local model = obj.Parent
+                if model:FindFirstChild("Humanoid") and model:FindFirstChild("HumanoidRootPart") then
+                    if not Players:GetPlayerFromCharacter(model) then
+                        local highlight = CreateChams(obj, ESP.Entities.Color)
+                        if highlight then
+                            table.insert(ESPObjects.Entities, highlight)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if ESP.Players.Enabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local rootPart = player.Character.HumanoidRootPart
+                local highlight = CreateChams(rootPart, ESP.Players.Color)
+                if highlight then
+                    table.insert(ESPObjects.Players, highlight)
+                end
+            end
+        end
     end
 end
 
-local function TweenToggle(toggle, state)
-    toggle.State = state
-    local targetColor = state and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(60, 60, 60)
-    local targetPos = state and UDim2.new(0, 69, 0.5, -14) or UDim2.new(0, 3, 0.5, -14)
+local function HandleStamina()
+    if not InfiniteStamina.Enabled then return end
     
-    TweenService:Create(toggle.ToggleBg, TweenInfo.new(0.15), { BackgroundColor3 = targetColor }):Play()
-    TweenService:Create(toggle.ToggleCircle, TweenInfo.new(0.15), { Position = targetPos }):Play()
-end
-
--- =============== CONSTRUÇÃO DA INTERFACE ===============
-ScreenGui.Name = "BackroomsScriptGui"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
--- Frame principal
-MainFrame.Size = UDim2.new(0, 800, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -400, 0.5, -250)
-MainFrame.BackgroundColor3 = Color3.fromRGB(60, 55, 50)
-MainFrame.BorderSizePixel = 3
-MainFrame.BorderColor3 = Color3.fromRGB(255, 215, 0)
-MainFrame.ClipsDescendants = true
-MainFrame.Parent = ScreenGui
-
--- Cabeçalho
-HeaderFrame.Size = UDim2.new(1, 0, 0, 45)
-HeaderFrame.BackgroundColor3 = Color3.fromRGB(45, 40, 35)
-HeaderFrame.BorderSizePixel = 0
-HeaderFrame.Parent = MainFrame
-
-HeaderText.Size = UDim2.new(1, 0, 1, 0)
-HeaderText.BackgroundTransparency = 1
-HeaderText.Text = "#BACKROOMS SCRIPT"
-HeaderText.TextColor3 = Color3.fromRGB(255, 215, 0)
-HeaderText.TextSize = 22
-HeaderText.Font = Enum.Font.GothamBold
-HeaderText.TextXAlignment = Enum.TextXAlignment.Center
-HeaderText.Parent = HeaderFrame
-
--- Linha divisória horizontal abaixo do cabeçalho
-local topDivider = Instance.new("Frame")
-topDivider.Size = UDim2.new(1, 0, 0, 2)
-topDivider.Position = UDim2.new(0, 0, 0, 45)
-topDivider.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-topDivider.BorderSizePixel = 0
-topDivider.Parent = MainFrame
-
--- Sidebar
-SidebarFrame.Size = UDim2.new(0, 220, 1, 0)
-SidebarFrame.Position = UDim2.new(0, 0, 0, 47)
-SidebarFrame.BackgroundColor3 = Color3.fromRGB(50, 45, 40)
-SidebarFrame.BorderSizePixel = 0
-SidebarFrame.Parent = MainFrame
-
--- Divisória vertical
-DividerLine.Size = UDim2.new(0, 2, 1, 0)
-DividerLine.Position = UDim2.new(0, 220, 0, 0)
-DividerLine.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-DividerLine.BorderSizePixel = 0
-DividerLine.Parent = MainFrame
-
--- Conteúdo principal
-ContentFrame.Size = UDim2.new(1, -225, 1, -50)
-ContentFrame.Position = UDim2.new(0, 225, 0, 50)
-ContentFrame.BackgroundColor3 = Color3.fromRGB(40, 38, 35)
-ContentFrame.BorderSizePixel = 0
-ContentFrame.Parent = MainFrame
-
--- =============== SIDEBAR ===============
-local function CreateSidebarButton(parent, text, position)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, 0, 0, 45)
-    button.Position = position
-    button.BackgroundColor3 = Color3.fromRGB(50, 45, 40)
-    button.BackgroundTransparency = 0.5
-    button.BorderSizePixel = 0
-    button.Text = text
-    button.TextColor3 = Color3.fromRGB(200, 200, 200)
-    button.TextSize = 18
-    button.Font = Enum.Font.Gotham
-    button.TextXAlignment = Enum.TextXAlignment.Center
-    button.Parent = parent
-    return button
-end
-
-EspButton = CreateSidebarButton(SidebarFrame, "Esp", UDim2.new(0, 0, 0, 10))
-StaminaButton = CreateSidebarButton(SidebarFrame, "Stamina", UDim2.new(0, 0, 0, 60))
-
--- Destaque inicial (Esp)
-local EspHighlight = Instance.new("Frame")
-EspHighlight.Size = UDim2.new(1, 0, 0, 45)
-EspHighlight.Position = UDim2.new(0, 0, 0, 10)
-EspHighlight.BackgroundColor3 = Color3.fromRGB(30, 28, 25)
-EspHighlight.BorderSizePixel = 0
-EspHighlight.Parent = SidebarFrame
-
--- =============== CONTEÚDO ESP ===============
-EspContent.Size = UDim2.new(1, -20, 1, -20)
-EspContent.Position = UDim2.new(0, 10, 0, 10)
-EspContent.BackgroundTransparency = 1
-EspContent.Parent = ContentFrame
-
-local EspTitle = Instance.new("TextLabel")
-EspTitle.Size = UDim2.new(1, 0, 0, 40)
-EspTitle.BackgroundTransparency = 1
-EspTitle.Text = "Visualizar"
-EspTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
-EspTitle.TextSize = 22
-EspTitle.Font = Enum.Font.GothamBold
-EspTitle.TextXAlignment = Enum.TextXAlignment.Left
-EspTitle.Parent = EspContent
-
--- Item: Visualizar Itens
-local ItemsToggleData = CreateToggle(EspContent, "Visualizar itens", Color3.fromRGB(13, 191, 37))
-ItemsToggleData.Frame.Position = UDim2.new(0, 0, 0, 50)
-
-ItemsToggleData.ToggleContainer.MouseButton1Click:Connect(function()
-    local newState = not ItemsToggleData.State
-    Settings.Esp.Items.Enabled = newState
-    TweenToggle(ItemsToggleData, newState)
+    local char = LocalPlayer.Character
+    if not char then return end
     
-    -- Aplicar ESP de itens
-    if newState then
-        -- Lógica para destacar itens no mapa
-        -- Exemplo: loop em partes com atributo "Item"
-        for _, part in pairs(workspace:GetDescendants()) do
-            if part:IsA("BasePart") and part:GetAttribute("Item") then
-                -- Aplicar Chams com transparência
-                local highlight = Instance.new("Highlight")
-                highlight.Adornee = part
-                highlight.FillColor = Settings.Esp.Items.Color
-                highlight.FillTransparency = 0.8
-                highlight.OutlineTransparency = 0.5
-                highlight.Parent = part
-            end
-        end
-    else
-        -- Remover highlights
-        for _, part in pairs(workspace:GetDescendants()) do
-            if part:IsA("BasePart") and part:GetAttribute("Item") then
-                local highlight = part:FindFirstChild("Highlight")
-                if highlight then highlight:Destroy() end
-            end
-        end
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    
+    if humanoid:FindFirstChild("Stamina") then
+        humanoid.Stamina.Value = 100
     end
-end)
-
-ItemsToggleData.ColorPicker.MouseButton1Click:Connect(function()
-    -- Abrir seletor de cor (simplificado)
-    local color = Color3.fromRGB(13, 191, 37)
-    -- Em implementação real, usar ColorPicker
-    Settings.Esp.Items.Color = color
-    ItemsToggleData.ColorPicker.BackgroundColor3 = color
-end)
-
--- Item: Visualizar Entidades
-local EntitiesToggleData = CreateToggle(EspContent, "Visualizar entidades", Color3.fromRGB(255, 17, 0))
-EntitiesToggleData.Frame.Position = UDim2.new(0, 0, 0, 110)
-
-EntitiesToggleData.ToggleContainer.MouseButton1Click:Connect(function()
-    local newState = not EntitiesToggleData.State
-    Settings.Esp.Entities.Enabled = newState
-    TweenToggle(EntitiesToggleData, newState)
     
-    if newState then
-        -- Lógica para destacar entidades hostis
-        for _, entity in pairs(workspace:GetDescendants()) do
-            if entity:IsA("Model") and entity:GetAttribute("Hostile") then
-                local highlight = Instance.new("Highlight")
-                highlight.Adornee = entity
-                highlight.FillColor = Settings.Esp.Entities.Color
-                highlight.FillTransparency = 0.8
-                highlight.OutlineTransparency = 0.5
-                highlight.Parent = entity
-            end
+    for _, obj in ipairs(char:GetDescendants()) do
+        if obj:IsA("NumberValue") and obj.Name:lower():match("stamina") then
+            obj.Value = 100
+        elseif obj:IsA("IntValue") and obj.Name:lower():match("stamina") then
+            obj.Value = 100
         end
-    else
-        for _, entity in pairs(workspace:GetDescendants()) do
-            if entity:IsA("Model") and entity:GetAttribute("Hostile") then
-                local highlight = entity:FindFirstChild("Highlight")
-                if highlight then highlight:Destroy() end
-            end
-        end
-    end
-end)
-
-EntitiesToggleData.ColorPicker.MouseButton1Click:Connect(function()
-    Settings.Esp.Entities.Color = Color3.fromRGB(255, 17, 0)
-    EntitiesToggleData.ColorPicker.BackgroundColor3 = Settings.Esp.Entities.Color
-end)
-
--- Item: Visualizar Players
-local PlayersToggleData = CreateToggle(EspContent, "Visualizar players", Color3.fromRGB(196, 82, 196))
-PlayersToggleData.Frame.Position = UDim2.new(0, 0, 0, 170)
-
-PlayersToggleData.ToggleContainer.MouseButton1Click:Connect(function()
-    local newState = not PlayersToggleData.State
-    Settings.Esp.Players.Enabled = newState
-    TweenToggle(PlayersToggleData, newState)
-    
-    if newState then
-        -- Lógica para destacar outros jogadores
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local highlight = Instance.new("Highlight")
-                highlight.Adornee = player.Character
-                highlight.FillColor = Settings.Esp.Players.Color
-                highlight.FillTransparency = 0.8
-                highlight.OutlineTransparency = 0.5
-                highlight.Parent = player.Character
-            end
-        end
-    else
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local highlight = player.Character:FindFirstChild("Highlight")
-                if highlight then highlight:Destroy() end
-            end
-        end
-    end
-end)
-
-PlayersToggleData.ColorPicker.MouseButton1Click:Connect(function()
-    Settings.Esp.Players.Color = Color3.fromRGB(196, 82, 196)
-    PlayersToggleData.ColorPicker.BackgroundColor3 = Settings.Esp.Players.Color
-end)
-
--- =============== CONTEÚDO STAMINA ===============
-StaminaContent.Size = UDim2.new(1, -20, 1, -20)
-StaminaContent.Position = UDim2.new(0, 10, 0, 10)
-StaminaContent.BackgroundTransparency = 1
-StaminaContent.Visible = false
-StaminaContent.Parent = ContentFrame
-
-local StaminaTitle = Instance.new("TextLabel")
-StaminaTitle.Size = UDim2.new(1, 0, 0, 40)
-StaminaTitle.BackgroundTransparency = 1
-StaminaTitle.Text = "Stamina"
-StaminaTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
-StaminaTitle.TextSize = 22
-StaminaTitle.Font = Enum.Font.GothamBold
-StaminaTitle.TextXAlignment = Enum.TextXAlignment.Left
-StaminaTitle.Parent = StaminaContent
-
--- Item: Stamina Infinita
-local InfiniteStaminaData = CreateToggle(StaminaContent, "Stamina infinita", Color3.fromRGB(0, 200, 0))
-InfiniteStaminaData.Frame.Position = UDim2.new(0, 0, 0, 50)
-InfiniteStaminaData.ColorPicker.Visible = false
-
-InfiniteStaminaData.ToggleContainer.MouseButton1Click:Connect(function()
-    local newState = not InfiniteStaminaData.State
-    Settings.Stamina.Infinite = newState
-    TweenToggle(InfiniteStaminaData, newState)
-    
-    if newState then
-        -- Lógica para stamina infinita
-        RunService.Heartbeat:Connect(function()
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                local humanoid = LocalPlayer.Character.Humanoid
-                humanoid.Stamina = humanoid.MaxStamina
-            end
-        end)
-    end
-end)
-
--- =============== NAVEGAÇÃO ===============
-local function SwitchCategory(category)
-    if category == "Esp" then
-        EspContent.Visible = true
-        StaminaContent.Visible = false
-        EspHighlight.Position = UDim2.new(0, 0, 0, 10)
-        EspButton.TextColor3 = Color3.fromRGB(255, 215, 0)
-        StaminaButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-    else
-        EspContent.Visible = false
-        StaminaContent.Visible = true
-        EspHighlight.Position = UDim2.new(0, 0, 0, 60)
-        EspButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-        StaminaButton.TextColor3 = Color3.fromRGB(255, 215, 0)
     end
 end
 
-EspButton.MouseButton1Click:Connect(function()
-    SwitchCategory("Esp")
-end)
-
-StaminaButton.MouseButton1Click:Connect(function()
-    SwitchCategory("Stamina")
-end)
-
--- =============== INICIALIZAÇÃO ===============
--- Definir estados iniciais
-UpdateToggleVisual(ItemsToggleData, false)
-UpdateToggleVisual(EntitiesToggleData, false)
-UpdateToggleVisual(PlayersToggleData, false)
-UpdateToggleVisual(InfiniteStaminaData, false)
-
--- Categoria inicial
-SwitchCategory("Esp")
-
--- =============== REMOVER GUI (DEBUG) ===============
---[[
-    Para remover a GUI durante desenvolvimento:
-    ScreenGui:Destroy()
-]]
-
-print("[#BACKROOMS SCRIPT] Interface carregada com sucesso!")
-
--- =============== SISTEMA DE PERSISTÊNCIA (OPCIONAL) ===============
---[[
-    Para salvar configurações entre sessões, use:
-    local DataStore = game:GetService("DataStoreService"):GetDataStore("BackroomsScript")
-    
-    -- Salvar
-    DataStore:SetAsync(LocalPlayer.UserId .. "_Settings", Settings)
-    
-    -- Carregar
-    local saved = DataStore:GetAsync(LocalPlayer.UserId .. "_Settings")
-    if saved then
-        Settings = saved
-        -- Aplicar configurações salvas
+local function MainLoop()
+    while true do
+        task.wait(0.5)
+        
+        if not ESP.Items.Enabled then ClearESP("Items") end
+        if not ESP.Entities.Enabled then ClearESP("Entities") end
+        if not ESP.Players.Enabled then ClearESP("Players") end
+        
+        ProcessEntities()
+        HandleStamina()
     end
-]]
+end
+
+CreateUI()
+coroutine.wrap(MainLoop)()
