@@ -1,375 +1,500 @@
 --[[
-    Backrooms Company Script
-    Funcionalidades:
-    - ESP para Itens, Entidades e Jogadores com seleção de cor.
-    - Stamina Infinita.
-    - Atalhos: P para alternar ESP de Itens, I para abrir/fechar a UI.
+    Advanced Roblox Automation Framework v1.0
+    - ESP Chams para Players com Color Picker
+    - UI Arrastável e Minimizável
+    - Alto desempenho com otimizações
 ]]
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
 -- Configurações
-local ESP = {
-    Items = { Enabled = false, Color = Color3.fromHex("#0dbf25") },
-    Entities = { Enabled = false, Color = Color3.fromHex("#ff1100") },
-    Players = { Enabled = false, Color = Color3.fromHex("#c452c4") }
+local Config = {
+    ESP = {
+        Enabled = false,
+        Color = Color3.fromRGB(0, 255, 0)
+    }
 }
-local InfiniteStamina = { Enabled = false }
-local UI = { Visible = true }
 
--- Objetos ESP ativos
-local ESPObjects = { Items = {}, Entities = {}, Players = {} }
+-- Sistema de Otimização (Throttling)
+local Throttle = {
+    LastUpdate = 0,
+    UpdateInterval = 0.1, -- Atualiza a cada 100ms
+    ESPCache = {}
+}
 
--- Funções auxiliares para ESP
-local function ClearESP(type)
-    for _, obj in ipairs(ESPObjects[type] or {}) do
-        if obj and obj.Parent then obj:Destroy() end
-    end
-    ESPObjects[type] = {}
-end
+-- Gerenciador de ESP
+local ESPManager = {
+    ActiveHighlights = {},
+    Enabled = false
+}
 
-local function CreateChams(part, color)
+-- Função para criar Highlight (Chams)
+local function CreateHighlight(part, color)
     if not part or not part.Parent then return nil end
+    
     local highlight = Instance.new("Highlight")
     highlight.FillColor = color
     highlight.OutlineColor = color
-    highlight.FillTransparency = 0.2
+    highlight.FillTransparency = 0.2 -- 80% transparente
     highlight.OutlineTransparency = 0.2
     highlight.Adornee = part
     highlight.Parent = part
+    
     return highlight
 end
 
--- Criação da UI (idêntica à imagem)
-local function CreateUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BackroomScriptGUI"
-    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-    local function createMainFrame(visible)
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 350, 0, 200)
-        frame.Position = UDim2.new(0.5, -175, 0.5, -100)
-        frame.BackgroundColor3 = Color3.fromHex("#1a1a2e")
-        frame.BorderSizePixel = 0
-        frame.BackgroundTransparency = 0.1
-        frame.Visible = visible
-        frame.Parent = screenGui
-        return frame
-    end
-
-    local mainFrame = createMainFrame(true)
-    local staminaFrame = createMainFrame(false)
-
-    -- Título principal (comum a ambos)
-    local function createTitle(parent)
-        local title = Instance.new("TextLabel")
-        title.Size = UDim2.new(1, 0, 0, 30)
-        title.Position = UDim2.new(0, 0, 0, 5)
-        title.BackgroundTransparency = 1
-        title.Text = "#BACKROOMSCRIPT"
-        title.TextColor3 = Color3.fromHex("#00ff88")
-        title.TextScaled = true
-        title.Font = Enum.Font.Code
-        title.Parent = parent
-        return title
-    end
-    createTitle(mainFrame)
-    createTitle(staminaFrame)
-
-    -- Aba "Esp"
-    local function createESPSection(parent, yPos)
-        local section = Instance.new("Frame")
-        section.Size = UDim2.new(1, 0, 0, 90)
-        section.Position = UDim2.new(0, 0, 0, yPos)
-        section.BackgroundTransparency = 1
-        section.Parent = parent
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 0, 25)
-        label.BackgroundTransparency = 1
-        label.Text = "Esp"
-        label.TextColor3 = Color3.fromHex("#ffffff")
-        label.TextScaled = true
-        label.Font = Enum.Font.Code
-        label.Parent = section
-
-        local function createOption(parent, yOffset, text, defaultColor, espKey)
-            local optFrame = Instance.new("Frame")
-            optFrame.Size = UDim2.new(1, 0, 0, 30)
-            optFrame.Position = UDim2.new(0, 0, 0, yOffset)
-            optFrame.BackgroundTransparency = 1
-            optFrame.Parent = parent
-
-            local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(0.5, 0, 1, 0)
-            label.Position = UDim2.new(0, 5, 0, 0)
-            label.BackgroundTransparency = 1
-            label.Text = text
-            label.TextColor3 = Color3.fromHex("#ffffff")
-            label.TextScaled = true
-            label.TextXAlignment = Enum.TextXAlignment.Left
-            label.Font = Enum.Font.Code
-            label.Parent = optFrame
-
-            local toggle = Instance.new("TextButton")
-            toggle.Size = UDim2.new(0, 40, 0, 20)
-            toggle.Position = UDim2.new(0.7, 0, 0.5, -10)
-            toggle.BackgroundColor3 = Color3.fromHex("#333333")
-            toggle.Text = "OFF"
-            toggle.TextColor3 = Color3.fromHex("#ff0000")
-            toggle.TextScaled = true
-            toggle.Font = Enum.Font.Code
-            toggle.Parent = optFrame
-
-            local colorBtn = Instance.new("TextButton")
-            colorBtn.Size = UDim2.new(0, 25, 0, 20)
-            colorBtn.Position = UDim2.new(0.85, 0, 0.5, -10)
-            colorBtn.BackgroundColor3 = defaultColor
-            colorBtn.Text = ""
-            colorBtn.BorderSizePixel = 1
-            colorBtn.BorderColor3 = Color3.fromHex("#ffffff")
-            colorBtn.Parent = optFrame
-
-            -- Lógica do toggle
-            toggle.MouseButton1Click:Connect(function()
-                local isOn = toggle.Text == "ON"
-                toggle.Text = isOn and "OFF" or "ON"
-                toggle.TextColor3 = isOn and Color3.fromHex("#ff0000") or Color3.fromHex("#00ff00")
-                toggle.BackgroundColor3 = isOn and Color3.fromHex("#333333") or Color3.fromHex("#00aa00")
-                ESP[espKey].Enabled = not isOn
-                if not isOn then ClearESP(espKey) end
-            end)
-
-            -- Seletor de cor
-            colorBtn.MouseButton1Click:Connect(function()
-                local picker = Instance.new("Frame")
-                picker.Size = UDim2.new(0, 200, 0, 150)
-                picker.Position = UDim2.new(0.5, -100, 0.5, -75)
-                picker.BackgroundColor3 = Color3.fromHex("#1a1a2e")
-                picker.BorderSizePixel = 0
-                picker.Parent = screenGui
-
-                local grid = Instance.new("Frame")
-                grid.Size = UDim2.new(1, -10, 1, -40)
-                grid.Position = UDim2.new(0, 5, 0, 5)
-                grid.BackgroundTransparency = 1
-                grid.Parent = picker
-
-                local colors = {
-                    Color3.fromHex("#ff0000"), Color3.fromHex("#00ff00"), Color3.fromHex("#0000ff"),
-                    Color3.fromHex("#ffff00"), Color3.fromHex("#ff00ff"), Color3.fromHex("#00ffff"),
-                    Color3.fromHex("#ffffff"), Color3.fromHex("#888888"), Color3.fromHex("#000000"),
-                    Color3.fromHex("#ff8800"), Color3.fromHex("#88ff00"), Color3.fromHex("#0088ff")
-                }
-
-                for i, color in ipairs(colors) do
-                    local btn = Instance.new("TextButton")
-                    btn.Size = UDim2.new(0, 30, 0, 30)
-                    btn.Position = UDim2.new(0, ((i-1) % 4) * 35 + 10, 0, math.floor((i-1) / 4) * 35 + 10)
-                    btn.BackgroundColor3 = color
-                    btn.Text = ""
-                    btn.BorderSizePixel = 1
-                    btn.BorderColor3 = Color3.fromHex("#ffffff")
-                    btn.Parent = grid
-
-                    btn.MouseButton1Click:Connect(function()
-                        ESP[espKey].Color = color
-                        colorBtn.BackgroundColor3 = color
-                        picker:Destroy()
-                        if ESP[espKey].Enabled then ClearESP(espKey) end
-                    end)
-                end
-
-                local close = Instance.new("TextButton")
-                close.Size = UDim2.new(0, 50, 0, 25)
-                close.Position = UDim2.new(0.5, -25, 0, 120)
-                close.BackgroundColor3 = Color3.fromHex("#ff0000")
-                close.Text = "Fechar"
-                close.TextColor3 = Color3.fromHex("#ffffff")
-                close.TextScaled = true
-                close.Font = Enum.Font.Code
-                close.Parent = picker
-                close.MouseButton1Click:Connect(function() picker:Destroy() end)
-            end)
-
-            return toggle
+-- Atualiza ESP para todos os players
+local function UpdateESP()
+    if not Config.ESP.Enabled then
+        -- Limpa todos os highlights
+        for _, highlight in ipairs(ESPManager.ActiveHighlights) do
+            if highlight and highlight.Parent then
+                highlight:Destroy()
+            end
         end
-
-        createOption(section, 25, "Visualizar itens", ESP.Items.Color, "Items")
-        createOption(section, 55, "Visualizar entidades", ESP.Entities.Color, "Entities")
-        createOption(section, 85, "Visualizar players", ESP.Players.Color, "Players")
+        ESPManager.ActiveHighlights = {}
+        return
     end
-    createESPSection(mainFrame, 40)
+    
+    -- Remove highlights antigos
+    for _, highlight in ipairs(ESPManager.ActiveHighlights) do
+        if highlight and highlight.Parent then
+            highlight:Destroy()
+        end
+    end
+    ESPManager.ActiveHighlights = {}
+    
+    -- Aplica novos highlights
+    local color = Config.ESP.Color
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local character = player.Character
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+            
+            local primaryPart = rootPart or torso
+            if primaryPart then
+                local highlight = CreateHighlight(primaryPart, color)
+                if highlight then
+                    table.insert(ESPManager.ActiveHighlights, highlight)
+                end
+            end
+        end
+    end
+end
 
-    -- Aba "Stamina"
-    local function createStaminaSection(parent)
-        local section = Instance.new("Frame")
-        section.Size = UDim2.new(1, 0, 0, 60)
-        section.Position = UDim2.new(0, 0, 0, 40)
-        section.BackgroundTransparency = 1
-        section.Parent = parent
+-- Loop otimizado para ESP
+local function ESPLoop()
+    while true do
+        task.wait(Throttle.UpdateInterval)
+        UpdateESP()
+    end
+end
 
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 0, 25)
-        label.BackgroundTransparency = 1
-        label.Text = "Stamina"
-        label.TextColor3 = Color3.fromHex("#ffffff")
-        label.TextScaled = true
-        label.Font = Enum.Font.Code
-        label.Parent = section
+-- ============================================
+-- SISTEMA DE UI AVANÇADO
+-- ============================================
 
-        local optFrame = Instance.new("Frame")
-        optFrame.Size = UDim2.new(1, 0, 0, 30)
-        optFrame.Position = UDim2.new(0, 0, 0, 25)
-        optFrame.BackgroundTransparency = 1
-        optFrame.Parent = section
+local UI = {
+    IsDragging = false,
+    DragInput = nil,
+    DragStart = nil,
+    StartPos = nil,
+    Minimized = false,
+    ScreenGui = nil,
+    MainFrame = nil,
+    MinimizedButton = nil
+}
 
-        local label2 = Instance.new("TextLabel")
-        label2.Size = UDim2.new(0.5, 0, 1, 0)
-        label2.Position = UDim2.new(0, 5, 0, 0)
-        label2.BackgroundTransparency = 1
-        label2.Text = "Stamina infinita"
-        label2.TextColor3 = Color3.fromHex("#ffffff")
-        label2.TextScaled = true
-        label2.TextXAlignment = Enum.TextXAlignment.Left
-        label2.Font = Enum.Font.Code
-        label2.Parent = optFrame
-
-        local toggle = Instance.new("TextButton")
-        toggle.Size = UDim2.new(0, 40, 0, 20)
-        toggle.Position = UDim2.new(0.7, 0, 0.5, -10)
-        toggle.BackgroundColor3 = Color3.fromHex("#333333")
-        toggle.Text = "OFF"
-        toggle.TextColor3 = Color3.fromHex("#ff0000")
-        toggle.TextScaled = true
-        toggle.Font = Enum.Font.Code
-        toggle.Parent = optFrame
-
-        toggle.MouseButton1Click:Connect(function()
-            local isOn = toggle.Text == "ON"
-            toggle.Text = isOn and "OFF" or "ON"
-            toggle.TextColor3 = isOn and Color3.fromHex("#ff0000") or Color3.fromHex("#00ff00")
-            toggle.BackgroundColor3 = isOn and Color3.fromHex("#333333") or Color3.fromHex("#00aa00")
-            InfiniteStamina.Enabled = not isOn
+local function CreateUI()
+    -- ScreenGui principal
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AutomationFramework"
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    UI.ScreenGui = screenGui
+    
+    -- Frame principal (arrastável)
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 320, 0, 150)
+    mainFrame.Position = UDim2.new(0.5, -160, 0.5, -75)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+    mainFrame.BackgroundTransparency = 0.15
+    mainFrame.BorderSizePixel = 0
+    mainFrame.ClipsDescendants = true
+    mainFrame.Parent = screenGui
+    
+    -- Sombra
+    local shadow = Instance.new("Frame")
+    shadow.Size = UDim2.new(1, 10, 1, 10)
+    shadow.Position = UDim2.new(0, -5, 0, -5)
+    shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.BackgroundTransparency = 0.5
+    shadow.BorderSizePixel = 0
+    shadow.Parent = mainFrame
+    
+    -- Barra de título (para arrastar)
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+    titleBar.BackgroundTransparency = 0.3
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+    
+    -- Título
+    local titleText = Instance.new("TextLabel")
+    titleText.Size = UDim2.new(0.6, 0, 1, 0)
+    titleText.Position = UDim2.new(0, 10, 0, 0)
+    titleText.BackgroundTransparency = 1
+    titleText.Text = "⚡ Automation Framework"
+    titleText.TextColor3 = Color3.fromRGB(0, 255, 180)
+    titleText.TextScaled = true
+    titleText.TextXAlignment = Enum.TextXAlignment.Left
+    titleText.Font = Enum.Font.GothamBold
+    titleText.Parent = titleBar
+    
+    -- Botão Minimizar
+    local minButton = Instance.new("TextButton")
+    minButton.Size = UDim2.new(0, 30, 1, 0)
+    minButton.Position = UDim2.new(0.9, 0, 0, 0)
+    minButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    minButton.BackgroundTransparency = 0.2
+    minButton.Text = "−"
+    minButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    minButton.TextScaled = true
+    minButton.Font = Enum.Font.GothamBold
+    minButton.BorderSizePixel = 0
+    minButton.Parent = titleBar
+    
+    -- Botão Fechar (opcional)
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 30, 1, 0)
+    closeButton.Position = UDim2.new(0.95, 0, 0, 0)
+    closeButton.BackgroundColor3 = Color3.fromRGB(80, 30, 30)
+    closeButton.BackgroundTransparency = 0.2
+    closeButton.Text = "✕"
+    closeButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+    closeButton.TextScaled = true
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.BorderSizePixel = 0
+    closeButton.Parent = titleBar
+    
+    -- Conteúdo da UI
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Size = UDim2.new(1, -20, 1, -40)
+    contentFrame.Position = UDim2.new(0, 10, 0, 35)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Parent = mainFrame
+    
+    -- Label ESP
+    local espLabel = Instance.new("TextLabel")
+    espLabel.Size = UDim2.new(0.4, 0, 0, 30)
+    espLabel.Position = UDim2.new(0, 0, 0.1, 0)
+    espLabel.BackgroundTransparency = 1
+    espLabel.Text = "ESP Players"
+    espLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    espLabel.TextScaled = true
+    espLabel.TextXAlignment = Enum.TextXAlignment.Left
+    espLabel.Font = Enum.Font.Gotham
+    espLabel.Parent = contentFrame
+    
+    -- Toggle ESP
+    local espToggle = Instance.new("TextButton")
+    espToggle.Size = UDim2.new(0, 50, 0, 25)
+    espToggle.Position = UDim2.new(0.45, 0, 0.1, 0)
+    espToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    espToggle.Text = "OFF"
+    espToggle.TextColor3 = Color3.fromRGB(255, 80, 80)
+    espToggle.TextScaled = true
+    espToggle.Font = Enum.Font.GothamBold
+    espToggle.BorderSizePixel = 0
+    espToggle.Parent = contentFrame
+    
+    -- Color Picker Button
+    local colorPickerBtn = Instance.new("TextButton")
+    colorPickerBtn.Size = UDim2.new(0, 30, 0, 25)
+    colorPickerBtn.Position = UDim2.new(0.65, 0, 0.1, 0)
+    colorPickerBtn.BackgroundColor3 = Config.ESP.Color
+    colorPickerBtn.Text = ""
+    colorPickerBtn.BorderSizePixel = 2
+    colorPickerBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
+    colorPickerBtn.Parent = contentFrame
+    
+    -- Label de status
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, 0, 0, 20)
+    statusLabel.Position = UDim2.new(0, 0, 0.6, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Sistema: 💤 Inativo"
+    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.TextScaled = true
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.Parent = contentFrame
+    
+    -- ============================================
+    -- BOTÃO MINIMIZADO (aparece quando minimizado)
+    -- ============================================
+    local minimizedButton = Instance.new("TextButton")
+    minimizedButton.Size = UDim2.new(0, 45, 0, 45)
+    minimizedButton.Position = UDim2.new(0, 10, 0, 10)
+    minimizedButton.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+    minimizedButton.BackgroundTransparency = 0.15
+    minimizedButton.Text = "Z"
+    minimizedButton.TextColor3 = Color3.fromRGB(0, 255, 180)
+    minimizedButton.TextScaled = true
+    minimizedButton.Font = Enum.Font.GothamBold
+    minimizedButton.BorderSizePixel = 0
+    minimizedButton.Visible = false
+    minimizedButton.Parent = screenGui
+    UI.MinimizedButton = minimizedButton
+    
+    -- ============================================
+    -- LÓGICA DA UI
+    -- ============================================
+    
+    -- Função para minimizar
+    local function MinimizeUI()
+        UI.Minimized = true
+        mainFrame.Visible = false
+        minimizedButton.Visible = true
+        
+        -- Tween para suavizar
+        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local tween = TweenService:Create(minimizedButton, tweenInfo, {
+            BackgroundTransparency = 0.1,
+            Size = UDim2.new(0, 50, 0, 50)
+        })
+        tween:Play()
+    end
+    
+    -- Função para restaurar
+    local function RestoreUI()
+        UI.Minimized = false
+        mainFrame.Visible = true
+        minimizedButton.Visible = false
+        
+        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local tween = TweenService:Create(mainFrame, tweenInfo, {
+            BackgroundTransparency = 0.15
+        })
+        tween:Play()
+    end
+    
+    -- Evento do botão minimizar
+    minButton.MouseButton1Click:Connect(MinimizeUI)
+    
+    -- Evento do botão minimizado
+    minimizedButton.MouseButton1Click:Connect(RestoreUI)
+    
+    -- Evento do botão fechar
+    closeButton.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+    
+    -- ============================================
+    -- SISTEMA DE ARRASTAR (com smoothing)
+    -- ============================================
+    
+    local function StartDrag(input)
+        UI.IsDragging = true
+        UI.DragStart = input.Position
+        UI.StartPos = mainFrame.Position
+        
+        UI.DragInput = UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = input.Position - UI.DragStart
+                mainFrame.Position = UDim2.new(
+                    UI.StartPos.X.Scale,
+                    UI.StartPos.X.Offset + delta.X,
+                    UI.StartPos.Y.Scale,
+                    UI.StartPos.Y.Offset + delta.Y
+                )
+            end
         end)
     end
-    createStaminaSection(staminaFrame)
-
-    -- Botões de navegação
-    local function createNavButton(parent, text, xPos)
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 80, 0, 25)
-        btn.Position = UDim2.new(xPos, 0, 0, 5)
-        btn.BackgroundColor3 = Color3.fromHex("#00ff88")
-        btn.Text = text
-        btn.TextColor3 = Color3.fromHex("#000000")
-        btn.TextScaled = true
-        btn.Font = Enum.Font.Code
-        btn.Parent = parent
-        return btn
+    
+    local function EndDrag()
+        if UI.DragInput then
+            UI.DragInput:Disconnect()
+            UI.DragInput = nil
+        end
+        UI.IsDragging = false
     end
-
-    local staminaNav = createNavButton(mainFrame, "Stamina", 0.8)
-    local espNav = createNavButton(staminaFrame, "Esp", 0.8)
-
-    staminaNav.MouseButton1Click:Connect(function()
-        mainFrame.Visible = false
-        staminaFrame.Visible = true
-    end)
-
-    espNav.MouseButton1Click:Connect(function()
-        staminaFrame.Visible = false
-        mainFrame.Visible = true
-    end)
-
-    -- Atalho I para abrir/fechar UI
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.I then
-            UI.Visible = not UI.Visible
-            mainFrame.Visible = UI.Visible
-            staminaFrame.Visible = false
+    
+    -- Eventos de arrastar na barra de título
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            StartDrag(input)
         end
     end)
-
-    return { mainFrame = mainFrame, staminaFrame = staminaFrame }
+    
+    titleBar.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            EndDrag()
+        end
+    end)
+    
+    -- ============================================
+    -- LÓGICA DOS BOTÕES
+    -- ============================================
+    
+    -- Toggle ESP
+    espToggle.MouseButton1Click:Connect(function()
+        Config.ESP.Enabled = not Config.ESP.Enabled
+        
+        if Config.ESP.Enabled then
+            espToggle.Text = "ON"
+            espToggle.TextColor3 = Color3.fromRGB(80, 255, 80)
+            espToggle.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+            statusLabel.Text = "Sistema: 🟢 Ativo"
+            statusLabel.TextColor3 = Color3.fromRGB(80, 255, 80)
+        else
+            espToggle.Text = "OFF"
+            espToggle.TextColor3 = Color3.fromRGB(255, 80, 80)
+            espToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+            statusLabel.Text = "Sistema: 💤 Inativo"
+            statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+            -- Limpa ESP
+            UpdateESP()
+        end
+    end)
+    
+    -- Color Picker
+    colorPickerBtn.MouseButton1Click:Connect(function()
+        -- Criar color picker
+        local pickerFrame = Instance.new("Frame")
+        pickerFrame.Size = UDim2.new(0, 250, 0, 200)
+        pickerFrame.Position = UDim2.new(0.5, -125, 0.5, -100)
+        pickerFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+        pickerFrame.BackgroundTransparency = 0.1
+        pickerFrame.BorderSizePixel = 0
+        pickerFrame.Parent = screenGui
+        
+        -- Título do picker
+        local pickerTitle = Instance.new("TextLabel")
+        pickerTitle.Size = UDim2.new(1, 0, 0, 30)
+        pickerTitle.BackgroundTransparency = 1
+        pickerTitle.Text = "Selecionar Cor"
+        pickerTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+        pickerTitle.TextScaled = true
+        pickerTitle.Font = Enum.Font.GothamBold
+        pickerTitle.Parent = pickerFrame
+        
+        -- Grid de cores
+        local gridFrame = Instance.new("Frame")
+        gridFrame.Size = UDim2.new(1, -20, 1, -70)
+        gridFrame.Position = UDim2.new(0, 10, 0, 35)
+        gridFrame.BackgroundTransparency = 1
+        gridFrame.Parent = pickerFrame
+        
+        -- Cores pré-definidas
+        local colors = {
+            Color3.fromRGB(255, 0, 0),
+            Color3.fromRGB(0, 255, 0),
+            Color3.fromRGB(0, 0, 255),
+            Color3.fromRGB(255, 255, 0),
+            Color3.fromRGB(255, 0, 255),
+            Color3.fromRGB(0, 255, 255),
+            Color3.fromRGB(255, 128, 0),
+            Color3.fromRGB(128, 255, 0),
+            Color3.fromRGB(0, 128, 255),
+            Color3.fromRGB(255, 0, 128),
+            Color3.fromRGB(128, 0, 255),
+            Color3.fromRGB(0, 255, 128),
+        }
+        
+        local buttonSize = 35
+        local spacing = 5
+        local perRow = 6
+        
+        for i, color in ipairs(colors) do
+            local btn = Instance.new("TextButton")
+            local row = math.floor((i-1) / perRow)
+            local col = (i-1) % perRow
+            
+            btn.Size = UDim2.new(0, buttonSize, 0, buttonSize)
+            btn.Position = UDim2.new(0, col * (buttonSize + spacing), 0, row * (buttonSize + spacing))
+            btn.BackgroundColor3 = color
+            btn.Text = ""
+            btn.BorderSizePixel = 1
+            btn.BorderColor3 = Color3.fromRGB(255, 255, 255)
+            btn.Parent = gridFrame
+            
+            btn.MouseButton1Click:Connect(function()
+                Config.ESP.Color = color
+                colorPickerBtn.BackgroundColor3 = color
+                pickerFrame:Destroy()
+                
+                -- Atualiza ESP imediatamente se estiver ativo
+                if Config.ESP.Enabled then
+                    UpdateESP()
+                end
+            end)
+        end
+        
+        -- Botão fechar
+        local closePicker = Instance.new("TextButton")
+        closePicker.Size = UDim2.new(0, 80, 0, 25)
+        closePicker.Position = UDim2.new(0.5, -40, 0, 170)
+        closePicker.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+        closePicker.Text = "Fechar"
+        closePicker.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closePicker.TextScaled = true
+        closePicker.Font = Enum.Font.Gotham
+        closePicker.BorderSizePixel = 0
+        closePicker.Parent = pickerFrame
+        
+        closePicker.MouseButton1Click:Connect(function()
+            pickerFrame:Destroy()
+        end)
+    end)
+    
+    return {
+        MainFrame = mainFrame,
+        MinimizedButton = minimizedButton,
+        ScreenGui = screenGui
+    }
 end
 
--- Inicializa a UI
-CreateUI()
+-- ============================================
+-- INICIALIZAÇÃO
+-- ============================================
 
--- Loop principal para ESP e Stamina
-local function MainLoop()
-    while true do
-        task.wait(0.5)
+-- Criar UI
+local ui = CreateUI()
 
-        -- Limpar ESPs desativados
-        if not ESP.Items.Enabled then ClearESP("Items") end
-        if not ESP.Entities.Enabled then ClearESP("Entities") end
-        if not ESP.Players.Enabled then ClearESP("Players") end
+-- Iniciar loop de ESP em thread separada
+coroutine.wrap(ESPLoop)()
 
-        -- Processar ESPs
-        if ESP.Items.Enabled then
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                if obj:IsA("BasePart") and obj.Parent and obj.Parent:IsA("Model") then
-                    local model = obj.Parent
-                    if model.Name:lower():match("item") or model.Name:lower():match("value") or 
-                       model.Name:lower():match("collect") or model.Name:lower():match("pickup") then
-                        local highlight = CreateChams(obj, ESP.Items.Color)
-                        if highlight then table.insert(ESPObjects.Items, highlight) end
-                    end
-                end
-            end
-        end
+-- ============================================
+-- SISTEMA DE SEGURANÇA E PERFORMANCE
+-- ============================================
 
-        if ESP.Entities.Enabled then
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                if obj:IsA("BasePart") and obj.Parent and obj.Parent:IsA("Model") then
-                    local model = obj.Parent
-                    if model:FindFirstChild("Humanoid") and model:FindFirstChild("HumanoidRootPart") then
-                        if not Players:GetPlayerFromCharacter(model) then
-                            local highlight = CreateChams(obj, ESP.Entities.Color)
-                            if highlight then table.insert(ESPObjects.Entities, highlight) end
-                        end
-                    end
-                end
-            end
-        end
-
-        if ESP.Players.Enabled then
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local rootPart = player.Character.HumanoidRootPart
-                    local highlight = CreateChams(rootPart, ESP.Players.Color)
-                    if highlight then table.insert(ESPObjects.Players, highlight) end
-                end
-            end
-        end
-
-        -- Stamina Infinita
-        if InfiniteStamina.Enabled then
-            local char = LocalPlayer.Character
-            if char then
-                local humanoid = char:FindFirstChild("Humanoid")
-                if humanoid then
-                    if humanoid:FindFirstChild("Stamina") then
-                        humanoid.Stamina.Value = 100
-                    end
-                    for _, obj in ipairs(char:GetDescendants()) do
-                        if obj:IsA("NumberValue") and obj.Name:lower():match("stamina") then
-                            obj.Value = 100
-                        elseif obj:IsA("IntValue") and obj.Name:lower():match("stamina") then
-                            obj.Value = 100
-                        end
-                    end
-                end
-            end
+-- Limpeza automática quando o jogador sair
+LocalPlayer.AncestryChanged:Connect(function()
+    if not LocalPlayer.Parent then
+        if ui.ScreenGui then
+            ui.ScreenGui:Destroy()
         end
     end
-end
+end)
 
--- Inicia o loop em uma thread separada
-coroutine.wrap(MainLoop)()
+-- Prevenir memory leaks
+game:GetService("CoreGui").ChildRemoved:Connect(function(child)
+    if child.Name == "AutomationFramework" then
+        -- Cleanup
+        for _, highlight in ipairs(ESPManager.ActiveHighlights) do
+            if highlight and highlight.Parent then
+                highlight:Destroy()
+            end
+        end
+        ESPManager.ActiveHighlights = {}
+    end
+end)
+
+print("⚡ Automation Framework carregado com sucesso!")
+print("📌 Pressione 'Z' para restaurar a UI se minimizada")
