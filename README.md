@@ -1,14 +1,15 @@
---// Murder Nice HUD - Murder Mystery 2
+--// Murder Nice HUD - Completo para Murder Mystery 2
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 
 local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MurderNiceHUD"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = player.PlayerGui
 
--- Config ESP
+-- Configurações ESP
 local ESP_All = false
 local ESP_Roles = false
 
@@ -33,7 +34,7 @@ local function CreateHighlight(char, color)
 	hl.Adornee = char
 	hl.FillColor = color
 	hl.OutlineColor = color
-	hl.FillTransparency = 0.72
+	hl.FillTransparency = 0.68
 	hl.OutlineTransparency = 0.25
 	hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	hl.Parent = char
@@ -41,40 +42,49 @@ local function CreateHighlight(char, color)
 	table.insert(highlights, hl)
 end
 
+local function GetRole(plr)
+	if not plr then return "Innocent" end
+	
+	local ls = plr:FindFirstChild("leaderstats")
+	if ls then
+		local role = ls:FindFirstChild("Role") or ls:FindFirstChild("role")
+		if role then
+			local r = tostring(role.Value):lower()
+			if r:find("murder") then return "Murderer" end
+			if r:find("sheriff") or r:find("xerife") then return "Sheriff" end
+		end
+	end
+	
+	-- Backup: Itens
+	local backpack = plr:FindFirstChild("Backpack")
+	if backpack then
+		for _, item in ipairs(backpack:GetChildren()) do
+			local n = item.Name:lower()
+			if n:find("knife") then return "Murderer" end
+			if n:find("gun") then return "Sheriff" end
+		end
+	end
+	
+	return "Innocent"
+end
+
 local function UpdateESP()
 	ClearHighlights()
 	
 	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr == player then continue end
-		if not plr.Character then continue end
+		if plr == player or not plr.Character then continue end
 		
-		local char = plr.Character
-		local role = "Innocent"
+		local role = GetRole(plr)
 		
-		-- Detecção específica do Murder Mystery 2
-		local leaderstats = plr:FindFirstChild("leaderstats")
-		if leaderstats then
-			local roleVal = leaderstats:FindFirstChild("Role") or leaderstats:FindFirstChild("role")
-			if roleVal then
-				local r = roleVal.Value
-				if r == "Murderer" or r == "murderer" then
-					role = "Murderer"
-				elseif r == "Sheriff" or r == "sheriff" then
-					role = "Sheriff"
-				end
-			end
-		end
-		
-		-- Aplicar ESP
 		if ESP_All then
-			CreateHighlight(char, Color_All)
+			CreateHighlight(plr.Character, Color_All)
 		end
 		
 		if ESP_Roles then
 			if role == "Murderer" then
-				CreateHighlight(char, Color_Murder)
+				CreateHighlight(plr.Character, Color_Murder)
 			elseif role == "Sheriff" then
-				CreateHighlight(char, Color_Sheriff)
+				CreateHighlight(plr.Character, Color_Sheriff)
 			end
 		end
 	end
@@ -90,7 +100,6 @@ MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 14)
 
--- Top Bar
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1,0,0,55)
 TopBar.BackgroundColor3 = Color3.fromRGB(13,13,14)
@@ -108,7 +117,6 @@ Title.Font = Enum.Font.GothamBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TopBar
 
--- Close / Minimize
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0,36,0,36)
 CloseBtn.Position = UDim2.new(1,-48,0.5,-18)
@@ -117,15 +125,6 @@ CloseBtn.Text = "✕"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
 CloseBtn.TextSize = 24
 CloseBtn.Parent = TopBar
-
-local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0,36,0,36)
-MinBtn.Position = UDim2.new(1,-88,0.5,-18)
-MinBtn.BackgroundTransparency = 1
-MinBtn.Text = "−"
-MinBtn.TextColor3 = Color3.fromRGB(170,170,170)
-MinBtn.TextSize = 28
-MinBtn.Parent = TopBar
 
 -- Sidebar
 local Sidebar = Instance.new("Frame")
@@ -156,8 +155,8 @@ Content.Position = UDim2.new(0, 150, 0, 55)
 Content.BackgroundColor3 = Color3.fromRGB(25,25,27)
 Content.Parent = MainFrame
 
--- Toggles
-local function CreateToggle(y, text, defaultColor, callback)
+-- Toggle Function
+local function CreateToggle(y, text, color, callback)
 	local Frame = Instance.new("Frame")
 	Frame.Size = UDim2.new(0.9,0,0,58)
 	Frame.Position = UDim2.new(0.05,0,0,y)
@@ -191,10 +190,11 @@ local function CreateToggle(y, text, defaultColor, callback)
 	end)
 end
 
+-- Criar Toggles
 CreateToggle(50, "Jogadores", Color_All, function(v) ESP_All = v end)
 CreateToggle(125, "Murder & Xerife", Color_Murder, function(v) ESP_Roles = v end)
 
--- ESP Loop
+-- Loop do ESP
 RunService.RenderStepped:Connect(function()
 	if ESP_All or ESP_Roles then
 		UpdateESP()
@@ -207,4 +207,4 @@ CloseBtn.MouseButton1Click:Connect(function()
 	ScreenGui:Destroy()
 end)
 
-print("✅ HUD para Murder Mystery 2 carregado!")
+print("✅ HUD para Murder Mystery 2 carregado com sucesso!")
