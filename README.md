@@ -1,220 +1,293 @@
---// Minimalist ESP + Stamina HUD (LocalScript)
+--// Murder Nice HUD - Exact UI Recreation (LocalScript)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 
--- Configurações
-local ESP = {
-    Items =    {Enabled = false, Color = Color3.fromHex("#0dbf25"), Trans = 0.8},
-    Entities = {Enabled = false, Color = Color3.fromHex("#ff1100"), Trans = 0.8},
-    Players =  {Enabled = false, Color = Color3.fromHex("#c452c4"), Trans = 0.8}
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MurderNiceHUD"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Config
+local ESP_Config = {
+    AllPlayers = {Enabled = false, Color = Color3.fromHex("#00bf63")},
+    MurderSheriff = {Enabled = false, MurderColor = Color3.fromHex("#c90e0e"), SheriffColor = Color3.fromHex("#5696e3")}
 }
 
-local InfiniteStamina = false
+local minimized = false
+local MainFrame, MiniIcon
 
---// Criação do HUD Minimalista
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "MinimalESP_HUD"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = player.PlayerGui
+--// Main Frame
+MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 420, 0, 320)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 22)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Visible = true
+MainFrame.Parent = ScreenGui
 
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 320, 0, 380)
-Main.Position = UDim2.new(0.5, -160, 0.5, -190)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true
-Main.Parent = ScreenGui
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
+-- Top Bar
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 45)
+TopBar.BackgroundColor3 = Color3.fromRGB(15, 15, 17)
+TopBar.Parent = MainFrame
+Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
 
--- Título Minimal
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Size = UDim2.new(0.6, 0, 1, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ESP HUD"
-Title.TextColor3 = Color3.fromRGB(220, 220, 230)
-Title.TextSize = 16
+Title.Text = "# Murder nice"
+Title.TextColor3 = Color3.new(1,1,1)
+Title.TextSize = 18
 Title.Font = Enum.Font.GothamBold
-Title.Parent = Main
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Position = UDim2.new(0, 15, 0, 0)
+Title.Parent = TopBar
 
--- Tabs
-local TabContainer = Instance.new("Frame")
-TabContainer.Size = UDim2.new(1, -20, 0, 35)
-TabContainer.Position = UDim2.new(0, 10, 0, 45)
-TabContainer.BackgroundTransparency = 1
-TabContainer.Parent = Main
+-- Close and Minimize
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -40, 0.5, -15)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+CloseBtn.TextSize = 20
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = TopBar
 
-local TabESP = Instance.new("TextButton")
-TabESP.Size = UDim2.new(0.5, -5, 1, 0)
-TabESP.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-TabESP.Text = "ESP"
-TabESP.TextColor3 = Color3.new(1,1,1)
-TabESP.Font = Enum.Font.GothamSemibold
-TabESP.TextSize = 14
-TabESP.Parent = TabContainer
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 30, 0, 30)
+MinBtn.Position = UDim2.new(1, -75, 0.5, -15)
+MinBtn.BackgroundTransparency = 1
+MinBtn.Text = "−"
+MinBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+MinBtn.TextSize = 24
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.Parent = TopBar
 
-local TabStamina = Instance.new("TextButton")
-TabStamina.Size = UDim2.new(0.5, -5, 1, 0)
-TabStamina.Position = UDim2.new(0.5, 5, 0, 0)
-TabStamina.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-TabStamina.Text = "Stamina"
-TabStamina.TextColor3 = Color3.new(1,1,1)
-TabStamina.Font = Enum.Font.GothamSemibold
-TabStamina.TextSize = 14
-TabStamina.Parent = TabContainer
+-- Left Sidebar
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 130, 1, -45)
+Sidebar.Position = UDim2.new(0, 0, 0, 45)
+Sidebar.BackgroundColor3 = Color3.fromRGB(18, 18, 20)
+Sidebar.Parent = MainFrame
 
-local Content = Instance.new("ScrollingFrame")
-Content.Size = UDim2.new(1, -20, 1, -95)
-Content.Position = UDim2.new(0, 10, 0, 85)
-Content.BackgroundTransparency = 1
-Content.ScrollBarThickness = 3
-Content.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 90)
-Content.Parent = Main
+local MainTab = Instance.new("TextButton")
+MainTab.Size = UDim2.new(1, 0, 0, 50)
+MainTab.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+MainTab.Text = "Main"
+MainTab.TextColor3 = Color3.new(1,1,1)
+MainTab.Font = Enum.Font.GothamSemibold
+MainTab.TextSize = 16
+MainTab.Parent = Sidebar
 
-local List = Instance.new("UIListLayout")
-List.Padding = UDim.new(0, 6)
-List.SortOrder = Enum.SortOrder.LayoutOrder
-List.Parent = Content
+local VersionTab = Instance.new("TextButton")
+VersionTab.Size = UDim2.new(1, 0, 0, 50)
+VersionTab.Position = UDim2.new(0, 0, 0, 50)
+VersionTab.BackgroundColor3 = Color3.fromRGB(18, 18, 20)
+VersionTab.Text = "Versão"
+VersionTab.TextColor3 = Color3.new(1,1,1)
+VersionTab.Font = Enum.Font.GothamSemibold
+VersionTab.TextSize = 16
+VersionTab.Parent = Sidebar
 
--- Função Toggle Minimalista
-local function NewToggle(text, default, callback)
-    local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(1, 0, 0, 42)
-    Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-    Frame.Parent = Content
-    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 10)
+-- Content Area
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -130, 1, -45)
+Content.Position = UDim2.new(0, 130, 0, 45)
+Content.BackgroundColor3 = Color3.fromRGB(25, 25, 28)
+Content.Parent = MainFrame
 
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(0.65, 0, 1, 0)
-    Label.BackgroundTransparency = 1
-    Label.Text = text
-    Label.TextColor3 = Color3.new(1,1,1)
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Font = Enum.Font.GothamSemibold
-    Label.TextSize = 15
-    Label.Parent = Frame
+-- Main Tab Content
+local MainContent = Instance.new("Frame")
+MainContent.Size = UDim2.new(1,0,1,0)
+MainContent.BackgroundTransparency = 1
+MainContent.Visible = true
+MainContent.Parent = Content
 
-    local Toggle = Instance.new("TextButton")
-    Toggle.Size = UDim2.new(0, 48, 0, 26)
-    Toggle.Position = UDim2.new(1, -58, 0.5, -13)
-    Toggle.BackgroundColor3 = default and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(70, 70, 80)
-    Toggle.Text = ""
-    Toggle.Parent = Frame
-    Instance.new("UICorner", Toggle).CornerRadius = UDim.new(1, 0)
+local ESPTitle = Instance.new("TextLabel")
+ESPTitle.Size = UDim2.new(1,0,0,40)
+ESPTitle.Text = "ESP"
+ESPTitle.TextColor3 = Color3.new(1,1,1)
+ESPTitle.BackgroundTransparency = 1
+ESPTitle.Font = Enum.Font.GothamBold
+ESPTitle.TextSize = 18
+ESPTitle.Parent = MainContent
+
+-- Toggle Function
+local function CreateToggle(parent, text, default, color, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -30, 0, 50)
+    frame.Position = UDim2.new(0, 15, 0, 50)
+    frame.BackgroundTransparency = 1
+    frame.Parent = parent
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.6,0,1,0)
+    label.Text = text
+    label.TextColor3 = Color3.new(1,1,1)
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.GothamSemibold
+    label.TextSize = 16
+    label.Parent = frame
+
+    local toggle = Instance.new("TextButton")
+    toggle.Size = UDim2.new(0, 50, 0, 28)
+    toggle.Position = UDim2.new(1, -60, 0.5, -14)
+    toggle.BackgroundColor3 = default and Color3.fromRGB(0, 191, 99) or Color3.fromRGB(60,60,65)
+    toggle.Text = ""
+    toggle.Parent = frame
+    Instance.new("UICorner", toggle).CornerRadius = UDim.new(1,0)
 
     local enabled = default
-
-    Toggle.MouseButton1Click:Connect(function()
+    toggle.MouseButton1Click:Connect(function()
         enabled = not enabled
-        TweenService:Create(Toggle, TweenInfo.new(0.2), {
-            BackgroundColor3 = enabled and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(70, 70, 80)
-        }):Play()
+        toggle.BackgroundColor3 = enabled and Color3.fromRGB(0, 191, 99) or Color3.fromRGB(60,60,65)
         callback(enabled)
     end)
 
-    return Frame
-end
+    -- Color Picker
+    local picker = Instance.new("TextButton")
+    picker.Size = UDim2.new(0, 40, 0, 28)
+    picker.Position = UDim2.new(1, -110, 0.5, -14)
+    picker.BackgroundColor3 = color
+    picker.Text = ""
+    picker.Parent = frame
+    Instance.new("UICorner", picker).CornerRadius = UDim.new(0,6)
 
--- Função Color Picker (Clique para mudar)
-local function NewColorPicker(defaultColor, onChange)
-    local Btn = Instance.new("TextButton")
-    Btn.Size = UDim2.new(0, 70, 0, 28)
-    Btn.BackgroundColor3 = defaultColor
-    Btn.Text = "🎨"
-    Btn.TextSize = 16
-    Btn.Font = Enum.Font.Gotham
-    Btn.Parent = nil -- será parentado depois
-    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 8)
-
-    Btn.MouseButton1Click:Connect(function()
-        -- Simples ciclo de cores bonitas (pode expandir)
-        local colors = {
-            Color3.fromHex("#0dbf25"), Color3.fromHex("#ff1100"),
-            Color3.fromHex("#c452c4"), Color3.fromHex("#00d0ff"),
-            Color3.fromHex("#ffd700"), Color3.fromHex("#ff44aa")
-        }
-        local current = table.find(colors, Btn.BackgroundColor3) or 1
-        local nextColor = colors[current % #colors + 1]
-        Btn.BackgroundColor3 = nextColor
-        onChange(nextColor)
+    picker.MouseButton1Click:Connect(function()
+        -- Simple color cycle
+        local colors = {Color3.fromHex("#00bf63"), Color3.fromHex("#c90e0e"), Color3.fromHex("#5696e3"), Color3.fromHex("#00d0ff")}
+        local idx = table.find(colors, picker.BackgroundColor3) or 1
+        local newC = colors[idx % #colors + 1]
+        picker.BackgroundColor3 = newC
+        if text == "Jogadores" then ESP_Config.AllPlayers.Color = newC
+        elseif text == "Murder & Xerife" then -- will handle separately
+        end
     end)
-    return Btn
+
+    return frame
 end
 
--- ESP Section
-NewToggle("Visualizar Itens", false, function(v) ESP.Items.Enabled = v end)
-local itemColor = NewColorPicker(ESP.Items.Color, function(c) ESP.Items.Color = c end)
-itemColor.Parent = Content
+CreateToggle(MainContent, "Jogadores", false, Color3.fromHex("#00bf63"), function(v)
+    ESP_Config.AllPlayers.Enabled = v
+end)
 
-NewToggle("Visualizar Entidades", false, function(v) ESP.Entities.Enabled = v end)
-local entColor = NewColorPicker(ESP.Entities.Color, function(c) ESP.Entities.Color = c end)
-entColor.Parent = Content
+CreateToggle(MainContent, "Murder & Xerife", false, Color3.fromHex("#c90e0e"), function(v)
+    ESP_Config.MurderSheriff.Enabled = v
+end)
 
-NewToggle("Visualizar Players", false, function(v) ESP.Players.Enabled = v end)
-local playerColor = NewColorPicker(ESP.Players.Color, function(c) ESP.Players.Color = c end)
-playerColor.Parent = Content
+-- Version Tab
+local VersionContent = Instance.new("Frame")
+VersionContent.Size = UDim2.new(1,0,1,0)
+VersionContent.BackgroundTransparency = 1
+VersionContent.Visible = false
+VersionContent.Parent = Content
 
--- Stamina
-NewToggle("Stamina Infinita", false, function(v) InfiniteStamina = v end)
+local VerText = Instance.new("TextLabel")
+VerText.Size = UDim2.new(1,0,1,0)
+VerText.BackgroundTransparency = 1
+VerText.Text = "Versão: 1.0"
+VerText.TextColor3 = Color3.new(1,1,1)
+VerText.TextSize = 20
+VerText.Font = Enum.Font.Gotham
+VerText.Parent = VersionContent
 
---// ESP Logic
-local function ApplyChams(obj, color, trans)
-    if obj:FindFirstChild("MinimalHighlight") then return end
+-- Tab Switching
+MainTab.MouseButton1Click:Connect(function()
+    MainContent.Visible = true
+    VersionContent.Visible = false
+    MainTab.BackgroundColor3 = Color3.fromRGB(35,35,40)
+    VersionTab.BackgroundColor3 = Color3.fromRGB(18,18,20)
+end)
+
+VersionTab.MouseButton1Click:Connect(function()
+    MainContent.Visible = false
+    VersionContent.Visible = true
+    MainTab.BackgroundColor3 = Color3.fromRGB(18,18,20)
+    VersionTab.BackgroundColor3 = Color3.fromRGB(35,35,40)
+end)
+
+--// Minimize System
+local function Minimize()
+    minimized = true
+    MainFrame.Visible = false
+    
+    MiniIcon = Instance.new("ImageButton")
+    MiniIcon.Size = UDim2.new(0, 70, 0, 70)
+    MiniIcon.Position = UDim2.new(0.5, -35, 0.5, -35)
+    MiniIcon.BackgroundColor3 = Color3.fromRGB(20,20,22)
+    MiniIcon.Image = "rbxassetid://0" -- You can change to a real M logo
+    MiniIcon.Parent = ScreenGui
+    Instance.new("UICorner", MiniIcon).CornerRadius = UDim.new(0, 16)
+    
+    local MLabel = Instance.new("TextLabel")
+    MLabel.Size = UDim2.new(1,0,1,0)
+    MLabel.BackgroundTransparency = 1
+    MLabel.Text = "M"
+    MLabel.TextColor3 = Color3.new(1,1,1)
+    MLabel.TextSize = 40
+    MLabel.Font = Enum.Font.GothamBold
+    MLabel.Parent = MiniIcon
+    
+    MiniIcon.Draggable = true
+    MiniIcon.MouseButton1Click:Connect(function()
+        minimized = false
+        MiniIcon:Destroy()
+        MainFrame.Visible = true
+    end)
+end
+
+MinBtn.MouseButton1Click:Connect(Minimize)
+CloseBtn.MouseButton1Click:Connect(function()
+    ESP_Config.AllPlayers.Enabled = false
+    ESP_Config.MurderSheriff.Enabled = false
+    ScreenGui:Destroy()
+end)
+
+--// ESP System
+local function ApplyHighlight(obj, color)
+    if obj:FindFirstChild("MurderESP") then return end
     local hl = Instance.new("Highlight")
-    hl.Name = "MinimalHighlight"
+    hl.Name = "MurderESP"
     hl.FillColor = color
     hl.OutlineColor = color
-    hl.FillTransparency = trans
-    hl.OutlineTransparency = 0.4
+    hl.FillTransparency = 0.75
+    hl.OutlineTransparency = 0.3
     hl.Adornee = obj
     hl.Parent = obj
 end
 
 RunService.RenderStepped:Connect(function()
-    -- Itens (ajuste conforme seu jogo)
-    if ESP.Items.Enabled then
-        for _, v in ipairs(workspace:GetDescendants()) do
-            if (v.Name:find("Item") or v.Name:find("Chest") or v:FindFirstChild("Value")) and v:IsA("Model") or v:IsA("Part") then
-                ApplyChams(v, ESP.Items.Color, ESP.Items.Trans)
-            end
-        end
-    end
+    if not ESP_Config.AllPlayers.Enabled and not ESP_Config.MurderSheriff.Enabled then return end
 
-    -- Entidades
-    if ESP.Entities.Enabled then
-        for _, v in ipairs(workspace:GetDescendants()) do
-            if v:FindFirstChild("Humanoid") and not Players:GetPlayerFromCharacter(v) then
-                ApplyChams(v, ESP.Entities.Color, ESP.Entities.Trans)
-            end
-        end
-    end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local root = plr.Character
+            local role = plr:FindFirstChild("leaderstats") and plr.leaderstats:FindFirstChild("Role") or nil
 
-    -- Players
-    if ESP.Players.Enabled then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character then
-                ApplyChams(plr.Character, ESP.Players.Color, ESP.Players.Trans)
+            if ESP_Config.AllPlayers.Enabled then
+                ApplyHighlight(root, ESP_Config.AllPlayers.Color)
+            end
+
+            if ESP_Config.MurderSheriff.Enabled then
+                if role and role.Value == "Murderer" then
+                    ApplyHighlight(root, ESP_Config.MurderSheriff.MurderColor)
+                elseif role and (role.Value == "Sheriff" or role.Value == "Xerife") then
+                    ApplyHighlight(root, ESP_Config.MurderSheriff.SheriffColor)
+                end
             end
         end
     end
 end)
 
--- Stamina Loop
-task.spawn(function()
-    while task.wait(0.15) do
-        if InfiniteStamina and character and character:FindFirstChild("Humanoid") then
-            local hum = character.Humanoid
-            if hum:FindFirstChild("Stamina") then hum.Stamina.Value = 100 end
-            if hum:FindFirstChild("Sprint") then hum.Sprint.Value = 100 end
-        end
-    end
-end)
-
-player.CharacterAdded:Connect(function(c) character = c end)
-
-print("✅ HUD Minimalista carregado!")
+print("✅ Murder Nice HUD carregado com sucesso!")
